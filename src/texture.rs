@@ -2,7 +2,7 @@ use luminance::pixel::R32F;
 use luminance::shader::program::Program;
 use luminance::tess::{Mode, Tess, TessBuilder, TessError};
 use luminance::texture::{Dim2, Flat, Texture};
-use luminance_derive::{Semantics, UniformInterface, Vertex};
+
 use luminance_glfw::Surface;
 
 use crate::texture::semantics::TextureRendererInterface;
@@ -120,13 +120,5 @@ mod semantics {
     #[vertex(sem = "Semantics")]
     pub(crate) struct Vertex {
         pub position: VertexPosition,
-    }
-
-    impl Vertex {
-        pub fn new(position: [f32; 2]) -> Vertex {
-            Vertex {
-                position: VertexPosition::new(position),
-            }
-        }
     }
 }

@@ -1,7 +1,7 @@
 extern crate dali;
 use dali::texture_renderers::*;
 use dali::{DaliContext, DaliContextOptions, Stipple};
-use std::ops::DerefMut;
+
 
 const EXAMPLE_FS: &'static str = include_str!("example-fs.glsl");
 pub fn main() {
@@ -11,10 +11,10 @@ pub fn main() {
     let simple_waffle = FragmentShaderRenderer::new(EXAMPLE_FS, 512, 3);
     pipeline.preview_canvas(|canvas_gate| {
         let texture = canvas_gate.texture(&simple_waffle);
-        let texture2 = canvas_gate.texture(&simple_waffle);
+        let _texture2 = canvas_gate.texture(&simple_waffle);
 
         let color_map = canvas_gate.colormap(0.2, |x, y| [x.abs(), y.abs(), 0.0, 1.0]);
-        let color_map2 = canvas_gate.colormap(0.2, |x, y| [x.abs(), y.abs(), 0.0, 1.0]);
+        let _color_map2 = canvas_gate.colormap(0.2, |x, y| [x.abs(), y.abs(), 0.0, 1.0]);
 
         canvas_gate.layer(&color_map, |layer_gate| {
             //            render_debug(

@@ -1,26 +1,23 @@
-use crate::colormap::ColormapHandle;
-use crate::render::gate_stipple::StippleGate;
-use crate::render::semantics_copy::CopySemantics;
-use crate::render::semantics_stipple::{StippleSemantics, Vertex, VertexPosition};
-use crate::texture::TextureHandle;
-use crate::Stipple;
-use image::DynamicImage;
+use std::cell::RefCell;
+use std::ops::DerefMut;
+use std::rc::Rc;
+
 use luminance::blending::Equation::Additive;
 use luminance::blending::Factor::{SrcAlpha, SrcAlphaComplement};
 use luminance::context::GraphicsContext;
 use luminance::depth_test::DepthTest;
-use luminance::framebuffer::Framebuffer;
-use luminance::pipeline::{BoundTexture, Pipeline, RenderGate as LuminanceRenderGate, ShadingGate};
-use luminance::pixel::{Floating, R32F, RGBA32F};
+use luminance::pipeline::{BoundTexture, Pipeline, ShadingGate};
+use luminance::pixel::Floating;
 use luminance::render_state::RenderState;
 use luminance::shader::program::{Program, Uniform};
-use luminance::tess::{Mode, Tess, TessBuilder};
-use luminance::texture::{Dim2, Flat, GenMipmaps, Sampler, Texture};
+use luminance::tess::{Mode, TessBuilder};
+use luminance::texture::{Dim2, Flat};
 use luminance_derive::UniformInterface;
-use luminance_glfw::{Action, GlfwSurface, Key, Surface, WindowDim, WindowEvent, WindowOpt};
-use std::cell::RefCell;
-use std::ops::DerefMut;
-use std::rc::Rc;
+
+use crate::colormap::ColormapHandle;
+use crate::render::gate_stipple::StippleGate;
+use crate::render::semantics_stipple::StippleSemantics;
+use crate::texture::TextureHandle;
 
 #[derive(UniformInterface)]
 pub(crate) struct StippleInterface {
@@ -30,7 +27,7 @@ pub(crate) struct StippleInterface {
     #[uniform(unbound, name = "source_colormap")]
     pub colormap: Uniform<&'static BoundTexture<'static, Flat, Dim2, Floating>>,
     pub aspect_ratio: Uniform<f32>,
-    pub discardThreshold: Uniform<f32>,
+    pub discard_threshold: Uniform<f32>,
 }
 
 /// Handles the bulk of the rendering and GLSL interaction
@@ -93,7 +90,7 @@ impl<'a, C: GraphicsContext> LayerGate<'a, C> {
                 iface.aspect_ratio.update(aspect);
                 iface.texture.update(&bound_texture);
                 iface.colormap.update(&bound_colormap);
-                iface.discardThreshold.update(0.01f32);
+                iface.discard_threshold.update(0.01f32);
 
                 let render_state = RenderState::default()
                     .set_blending((Additive, SrcAlpha, SrcAlphaComplement))

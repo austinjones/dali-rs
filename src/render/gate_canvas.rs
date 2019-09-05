@@ -1,25 +1,18 @@
-use crate::colormap::ColormapHandle;
-use crate::render::debug_helper::render_debug;
-use crate::render::gate_layer::LayerGate;
-use crate::render::semantics_stipple::Vertex;
-use crate::texture::{TextureHandle, TextureRenderer};
-use image::DynamicImage;
-use luminance::blending::Equation::Additive;
-use luminance::blending::Factor::{SrcAlpha, SrcAlphaComplement};
-use luminance::context::GraphicsContext;
-use luminance::depth_test::DepthTest;
-use luminance::framebuffer::Framebuffer;
-use luminance::pipeline::{BoundTexture, Pipeline, RenderGate as LuminanceRenderGate, ShadingGate};
-use luminance::pixel::{Floating, R32F, RGBA32F};
-use luminance::render_state::RenderState;
-use luminance::shader::program::{Program, Uniform};
-use luminance::tess::{Mode, TessBuilder};
-use luminance::texture::{Dim2, Flat, GenMipmaps, Sampler, Texture};
-use luminance_derive::UniformInterface;
-use luminance_glfw::{Action, GlfwSurface, Key, Surface, WindowDim, WindowEvent, WindowOpt};
 use std::cell::RefCell;
 use std::ops::DerefMut;
 use std::rc::Rc;
+
+use luminance::framebuffer::Framebuffer;
+use luminance::pixel::{R32F, RGBA32F};
+use luminance::render_state::RenderState;
+use luminance::tess::{Mode, TessBuilder};
+use luminance::texture::{Dim2, Flat, GenMipmaps, Sampler, Texture};
+use luminance_glfw::Surface;
+
+use crate::colormap::ColormapHandle;
+use crate::render::gate_layer::LayerGate;
+use crate::render::semantics_stipple::Vertex;
+use crate::texture::{TextureHandle, TextureRenderer};
 
 /// CanvasGate represents an start-to-finish render to a Framebuffer.
 /// Manages high-level resources such as Color Maps, Textures, and Layers.
@@ -75,7 +68,9 @@ impl<C: Surface> CanvasGate<C> {
         )
         .expect("Failed to create colormap texture");
 
-        texture.upload_raw(GenMipmaps::No, buffer.as_slice());
+        texture
+            .upload_raw(GenMipmaps::No, buffer.as_slice())
+            .expect("Texture should have uploaded");
         ColormapHandle { texture }
     }
 
@@ -95,8 +90,8 @@ impl<C: Surface> CanvasGate<C> {
             .expect("Should have tesslated");
 
         let pipeline_builder = self.ctx.borrow_mut().deref_mut().pipeline_builder();
-        pipeline_builder.pipeline(&buffer, [0., 0., 0., 1.], |pipeline, shd_gate| {
-            shd_gate.shade(&program, |rdr_gate, iface| {
+        pipeline_builder.pipeline(&buffer, [0., 0., 0., 1.], |_pipeline, shd_gate| {
+            shd_gate.shade(&program, |rdr_gate, _iface| {
                 rdr_gate.render(RenderState::default(), |tess_gate| {
                     // this will render the attributeless quad with the offscreen framebuffer color slot
                     // bound for the shader to fetch from
@@ -114,7 +109,9 @@ impl<C: Surface> CanvasGate<C> {
         .expect("Should have generated texture");
 
         let texels = buffer.color_slot().get_raw_texels();
-        texture.upload_raw(GenMipmaps::Yes, texels.as_slice());
+        texture
+            .upload_raw(GenMipmaps::Yes, texels.as_slice())
+            .expect("Should have uploaded texture");
 
         TextureHandle { texture }
     }
@@ -130,7 +127,7 @@ impl<C: Surface> CanvasGate<C> {
 
         let vertex: [Vertex; 1] = [Vertex::new([-1.0, -1.0])];
 
-        let unit_quad = TessBuilder::new(self.ctx.borrow_mut().deref_mut())
+        let _unit_quad = TessBuilder::new(self.ctx.borrow_mut().deref_mut())
             .add_vertices(vertex)
             .set_mode(Mode::Point)
             .build();

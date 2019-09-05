@@ -1,8 +1,4 @@
-use crate::render::semantics_copy::CopyVertex;
-use luminance::blending::Equation::Additive;
-use luminance::blending::Factor::{SrcAlpha, SrcAlphaComplement};
 use luminance::context::GraphicsContext;
-use luminance::depth_test::DepthTest;
 use luminance::pipeline::ShadingGate;
 use luminance::render_state::RenderState;
 use luminance::shader::program::Program;
@@ -83,7 +79,7 @@ pub(crate) fn render_debug<C: GraphicsContext>(ctx: &mut C, shading_gate: &Shadi
         .build()
         .unwrap();
 
-    shading_gate.shade(&gen_program, |rdr_gate, iface| {
+    shading_gate.shade(&gen_program, |rdr_gate, _iface| {
         // we update the texture with the bound texture
         //                iface.texture.update(&bound_texture);
         //                iface.discardThreshold.update(0.01f32);

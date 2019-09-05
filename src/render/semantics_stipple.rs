@@ -1,5 +1,6 @@
-use crate::stipple::Stipple;
 use luminance_derive::{Semantics, Vertex};
+
+use crate::stipple::Stipple;
 
 /// See Stipple for more details on representation and variable effects.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Semantics)]
