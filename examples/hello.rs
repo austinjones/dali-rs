@@ -1,6 +1,6 @@
 extern crate dali;
 use dali::texture_renderers::*;
-use dali::{render_debug, DaliContext, DaliContextOptions, Stipple};
+use dali::{DaliContext, DaliContextOptions, Stipple};
 use std::ops::DerefMut;
 
 const EXAMPLE_FS: &'static str = include_str!("example-fs.glsl");

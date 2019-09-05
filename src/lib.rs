@@ -12,8 +12,6 @@ pub use stipple::Stipple;
 pub use texture::renderers as texture_renderers;
 pub use texture::TextureRenderer;
 
-pub use render::debug_helper::render_debug;
-
 #[cfg(test)]
 mod tests {
     #[test]

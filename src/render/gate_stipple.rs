@@ -20,6 +20,7 @@ use luminance_glfw::{Action, GlfwSurface, Key, Surface, WindowDim, WindowEvent, 
 use crate::render::semantics_stipple::VertexInstance;
 use crate::stipple::Stipple;
 
+/// Collects Stipple instances from the user, and provides an owned vec to LayerGate when the user has finished generating instances.
 pub struct StippleGate {
     stipples: Vec<VertexInstance>,
 }

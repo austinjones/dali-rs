@@ -1,3 +1,8 @@
+/// Represents a stippled brush stroke, with the parameters
+/// - translation: [f32; 2] from -1 to 1
+/// - scale: [f32; 2] from -`inf` to +`inf`: controls the size of the stipple bounds
+/// - colormap_scale: [f32; 2] from -`inf` to +`inf`: controls the colormap rate of change.  large values produce more color variance
+/// - rotation: [f32; 2] from -`inf` to +`inf` (radians)
 #[derive(Clone, Debug)]
 pub struct Stipple {
     pub(crate) translation: [f32; 2],

@@ -1,4 +1,4 @@
-use crate::render::pipeline::DaliPipeline;
+use crate::DaliPipeline;
 use image::DynamicImage;
 use luminance::blending::Equation::Additive;
 use luminance::blending::Factor::{SrcAlpha, SrcAlphaComplement};
@@ -20,13 +20,15 @@ use std::rc::Rc;
 pub struct DaliContextOptions {
     pub size: (u32, u32),
 }
-
+/// Wraps a GlfwSurface, and initializes the Dali renderer
+/// Use .pipeline() to start rendering
 pub struct DaliContext {
     surface: Rc<RefCell<GlfwSurface>>,
     render_size: [u32; 2],
 }
 
 impl DaliContext {
+    /// Creates a new DaliContext
     pub fn new(opts: DaliContextOptions) -> DaliContext {
         let (width, height) = opts.size;
 
@@ -44,6 +46,7 @@ impl DaliContext {
         }
     }
 
+    /// Creates a new render pipeline
     pub fn pipeline(&mut self) -> DaliPipeline<GlfwSurface> {
         DaliPipeline::new(self.surface.clone(), self.render_size)
     }

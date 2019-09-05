@@ -19,6 +19,9 @@ use std::cell::RefCell;
 use std::ops::DerefMut;
 use std::rc::Rc;
 
+/// Launches and executes end-to-end Dali renders.
+/// `preview_canvas` allows live previews, and
+/// `render_canvas` returns image-rs buffers.
 pub struct DaliPipeline<C> {
     ctx: Rc<RefCell<C>>,
     render_size: [u32; 2],
@@ -32,6 +35,7 @@ impl DaliPipeline<GlfwSurface> {
         DaliPipeline { ctx, render_size }
     }
 
+    /// Prepares an interactive window, renders, and shows the result
     pub fn preview_canvas<F>(&mut self, callback: F)
     where
         F: FnOnce(&mut CanvasGate<GlfwSurface>),
@@ -56,22 +60,20 @@ impl DaliPipeline<GlfwSurface> {
                 }
             }
         }
-        // copy final buffer to DynamicImage
-        //        DynamicImage::
-        ()
     }
 
+    /// Renders to an offscreen framebuffer, and returns the result as a DynamicImage
+    /// TODO: convert raw texels to Image DynamicImage
+    /// TODO: add feature flag for image-rs dependency
     pub fn render_canvas<F>(&mut self, callback: F) -> ()
     where
         F: FnOnce(&mut CanvasGate<GlfwSurface>),
     {
-        // setup
         let buffer =
             Framebuffer::new(self.ctx.borrow_mut().deref_mut(), self.render_size, 0).unwrap();
         let mut render_gate = CanvasGate::new(self.ctx.clone(), self.render_size, buffer);
 
         callback(&mut render_gate);
-        // copy final buffer to DynamicImage
         let color_slot = render_gate.get_buffer().color_slot();
         // TODO: figure out how to get the raw pixel data
         ()

@@ -14,14 +14,8 @@ struct SimpleInterface {}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Semantics)]
 pub enum Semantics {
-    // - Reference vertex positions with the "co" variable in vertex shaders.
-    // - The underlying representation is [f32; 2], which is a vec2 in GLSL.
-    // - The wrapper type you can use to handle such a semantics is VertexPosition.
     #[sem(name = "co", repr = "[f32; 2]", wrapper = "VertexPosition")]
     Position,
-    // - Reference vertex colors with the "color" variable in vertex shaders.
-    // - The underlying representation is [u8; 3], which is a uvec3 in GLSL.
-    // - The wrapper type you can use to handle such a semantics is VertexColor.
     #[sem(name = "color", repr = "[u8; 3]", wrapper = "VertexColor")]
     Color,
 }
@@ -31,10 +25,6 @@ pub enum Semantics {
 #[vertex(sem = "Semantics")]
 struct Vertex {
     pos: VertexPosition,
-    // Here, we can use the special normalized = <bool> construct to state whether we want integral
-    // vertex attributes to be available as normalized floats in the shaders, when fetching them from
-    // the vertex buffers. If you set it to "false" or ignore it, you will get non-normalized integer
-    // values (i.e. value ranging from 0 to 255 for u8, for instance).
     #[vertex(normalized = "true")]
     rgb: VertexColor,
 }
@@ -69,7 +59,7 @@ const TRI_VERTICES: [Vertex; 6] = [
     },
 ];
 
-pub fn render_debug<C: GraphicsContext>(ctx: &mut C, shading_gate: &ShadingGate) {
+pub(crate) fn render_debug<C: GraphicsContext>(ctx: &mut C, shading_gate: &ShadingGate) {
     const SIMPLE_VS: &'static str = include_str!("../shaders/simple-vs.glsl");
     const SIMPLE_FS: &'static str = include_str!("../shaders/simple-fs.glsl");
 

@@ -12,6 +12,9 @@ pub struct TextureHandle {
     pub(crate) texture: Texture<Flat, Dim2, R32F>,
 }
 
+/// Implements the functionality requires to fully render a mipmapped texture, that can be used as a stipple pattern
+/// Most commonly used with FragmentShaderRenderer
+/// An example shader is shown in gen-fs.glsl
 pub trait TextureRenderer {
     fn compile(&self) -> Program<(), (), TextureRendererInterface>;
 
@@ -54,6 +57,7 @@ pub mod renderers {
     use crate::texture::semantics::TextureRendererInterface;
     use crate::texture::TextureRenderer;
 
+    /// Renders a fragment shader into a mipmapped texture.
     pub struct FragmentShaderRenderer {
         fragment_shader: String,
         mipmaps: usize,
@@ -71,7 +75,6 @@ pub mod renderers {
     }
 
     const GEN_VS: &'static str = include_str!("shaders/gen-vs.glsl");
-    const GEN_FS: &'static str = include_str!("shaders/gen-fs.glsl");
     impl TextureRenderer for FragmentShaderRenderer {
         fn compile(&self) -> Program<(), (), TextureRendererInterface> {
             let (gen_program, warnings) =
@@ -108,9 +111,6 @@ mod semantics {
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq, Semantics)]
     pub enum Semantics {
-        // - Reference vertex positions with the "co" variable in vertex shaders.
-        // - The underlying representation is [f32; 2], which is a vec2 in GLSL.
-        // - The wrapper type you can use to handle such a semantics is VertexPosition.
         #[sem(name = "position", repr = "[f32; 2]", wrapper = "VertexPosition")]
         Position,
     }
@@ -118,7 +118,7 @@ mod semantics {
     #[repr(C)]
     #[derive(Clone, Copy, Debug, PartialEq, Vertex)]
     #[vertex(sem = "Semantics")]
-    pub struct Vertex {
+    pub(crate) struct Vertex {
         pub position: VertexPosition,
     }
 

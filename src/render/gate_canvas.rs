@@ -21,6 +21,8 @@ use std::cell::RefCell;
 use std::ops::DerefMut;
 use std::rc::Rc;
 
+/// CanvasGate represents an start-to-finish render to a Framebuffer.
+/// Manages high-level resources such as Color Maps, Textures, and Layers.
 pub struct CanvasGate<C> {
     pub ctx: Rc<RefCell<C>>,
     render_size: [u32; 2],
@@ -28,26 +30,15 @@ pub struct CanvasGate<C> {
     pub buffer: Framebuffer<Flat, Dim2, (), ()>,
 }
 
-const MERGE_VS: &'static str = include_str!("../shaders/merge-vs.glsl");
-const MERGE_FS: &'static str = include_str!("../shaders/merge-fs.glsl");
 impl<C: Surface> CanvasGate<C> {
     pub fn new(
         ctx: Rc<RefCell<C>>,
         render_size: [u32; 2],
         buffer: Framebuffer<Flat, Dim2, (), ()>,
     ) -> CanvasGate<C> {
-        //        let (merge_program, warnings) =
-        //            Program::<(), (), MergeInterface>::from_strings(None, MERGE_VS, None, MERGE_FS)
-        //                .expect("merge program creation");
-        //
-        //        for warning in warnings.iter() {
-        //            eprintln!("Warning: {}", warning);
-        //        }
-
         CanvasGate {
             ctx,
             render_size,
-            //            program: merge_program,
             buffer,
         }
     }

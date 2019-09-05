@@ -1,13 +1,12 @@
 use crate::stipple::Stipple;
 use luminance_derive::{Semantics, Vertex};
 
+/// See Stipple for more details on representation and variable effects.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Semantics)]
 pub enum StippleSemantics {
-    // reference vertex positions with the co variable in vertex shaders
     #[sem(name = "position", repr = "[f32; 2]", wrapper = "VertexPosition")]
     Position,
 
-    // reference vertex instance’s position on screen
     #[sem(
         name = "translation",
         repr = "[f32; 2]",
@@ -33,18 +32,8 @@ pub enum StippleSemantics {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Vertex)]
 #[vertex(sem = "StippleSemantics")]
-pub struct Vertex {
+pub(crate) struct Vertex {
     pub position: VertexPosition,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Vertex)]
-#[vertex(sem = "StippleSemantics", instanced = "true")]
-pub struct Instance {
-    pub translation: VertexInstanceTranslation,
-    pub scale: VertexInstanceScale,
-    pub colormap_scale: VertexInstanceColormapScale,
-    pub rotation: VertexInstanceRotation,
 }
 
 impl Vertex {

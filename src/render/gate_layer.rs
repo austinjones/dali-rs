@@ -23,7 +23,7 @@ use std::ops::DerefMut;
 use std::rc::Rc;
 
 #[derive(UniformInterface)]
-pub struct StippleInterface {
+pub(crate) struct StippleInterface {
     // we only need the source texture (from the framebuffer) to fetch from
     #[uniform(unbound, name = "source_texture")]
     pub texture: Uniform<&'static BoundTexture<'static, Flat, Dim2, Floating>>,
@@ -33,13 +33,16 @@ pub struct StippleInterface {
     pub discardThreshold: Uniform<f32>,
 }
 
+/// Handles the bulk of the rendering and GLSL interaction
+/// CanvasGate binds a framebuffer, and then initializes the LayerGate
+/// LayerGate renders primitives such as Stipple instances.
 pub struct LayerGate<'a, C> {
     pub ctx: Rc<RefCell<C>>,
     render_size: [u32; 2],
     pipeline: Pipeline<'a>,
     pub shading_gate: ShadingGate<'a>,
     color_map: &'a ColormapHandle,
-    copy_program: Program<StippleSemantics, (), StippleInterface>,
+    stipple_program: Program<StippleSemantics, (), StippleInterface>,
 }
 
 const COPY_VS: &'static str = include_str!("../shaders/stipple-vs.glsl");
@@ -52,7 +55,7 @@ impl<'a, C: GraphicsContext> LayerGate<'a, C> {
         pipeline: Pipeline<'a>,
         shading_gate: ShadingGate<'a>,
     ) -> LayerGate<'a, C> {
-        let (copy_program, warnings) =
+        let (stipple_program, warnings) =
             Program::<StippleSemantics, (), StippleInterface>::from_strings(
                 None, COPY_VS, None, COPY_FS,
             )
@@ -68,7 +71,7 @@ impl<'a, C: GraphicsContext> LayerGate<'a, C> {
             pipeline,
             shading_gate,
             color_map,
-            copy_program,
+            stipple_program,
         }
     }
 
@@ -84,7 +87,7 @@ impl<'a, C: GraphicsContext> LayerGate<'a, C> {
         let bound_colormap = self.pipeline.bind_texture(&self.color_map.texture);
 
         self.shading_gate
-            .shade(&self.copy_program, |rdr_gate, iface| {
+            .shade(&self.stipple_program, |rdr_gate, iface| {
                 // we update the texture with the bound texture
                 let aspect = self.render_size[0] as f32 / self.render_size[1] as f32;
                 iface.aspect_ratio.update(aspect);
