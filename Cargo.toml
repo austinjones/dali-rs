@@ -1,0 +1,13 @@
+[package]
+name = "dali"
+version = "0.1.0"
+authors = ["Austin Jones <austinbaysjones@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+luminance = "0.32.0"
+luminance-derive = "0.1.1"
+luminance-glfw = "0.6.1"
+image = "0.22.1"
