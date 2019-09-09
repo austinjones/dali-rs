@@ -2,8 +2,9 @@ use std::cell::RefCell;
 use std::ops::DerefMut;
 use std::rc::Rc;
 
+use luminance::framebuffer::ColorSlot;
 use luminance::framebuffer::Framebuffer;
-use luminance::pixel::{R32F, RGBA32F};
+use luminance::pixel::{R32F, R8UI, RG32F, RG8UI, RGBA32F};
 use luminance::render_state::RenderState;
 use luminance::tess::{Mode, TessBuilder};
 use luminance::texture::{Dim2, Flat, GenMipmaps, Sampler, Texture};
@@ -13,27 +14,32 @@ use crate::colormap::ColormapHandle;
 use crate::render::gate_layer::LayerGate;
 use crate::render::semantics_stipple::Vertex;
 use crate::texture::{TextureHandle, TextureRenderer};
+use image::{DynamicImage, LumaA};
 
 /// CanvasGate represents an start-to-finish render to a Framebuffer.
 /// Manages high-level resources such as Color Maps, Textures, and Layers.
-pub struct CanvasGate<C> {
+pub struct CanvasGate<C, CS: ColorSlot<Flat, Dim2>> {
     pub ctx: Rc<RefCell<C>>,
     render_size: [u32; 2],
     //    program: Program<(), (), MergeInterface>,
-    pub buffer: Framebuffer<Flat, Dim2, (), ()>,
+    pub buffer: Framebuffer<Flat, Dim2, CS, ()>,
 }
 
-impl<C: Surface> CanvasGate<C> {
+impl<C: Surface, CS: ColorSlot<Flat, Dim2>> CanvasGate<C, CS> {
     pub fn new(
         ctx: Rc<RefCell<C>>,
         render_size: [u32; 2],
-        buffer: Framebuffer<Flat, Dim2, (), ()>,
-    ) -> CanvasGate<C> {
+        buffer: Framebuffer<Flat, Dim2, CS, ()>,
+    ) -> CanvasGate<C, CS> {
         CanvasGate {
             ctx,
             render_size,
             buffer,
         }
+    }
+
+    pub fn context(&self) -> Rc<RefCell<C>> {
+        self.ctx.clone()
     }
 
     pub fn colormap<F>(&mut self, scale: f32, lambda: F) -> ColormapHandle
@@ -74,6 +80,49 @@ impl<C: Surface> CanvasGate<C> {
         ColormapHandle { texture }
     }
 
+    // TODO: share code w/ texture_from_image
+    pub fn colormap_from_image(&self, image: image::RgbaImage) -> ColormapHandle {
+        let dims = image.dimensions();
+        let texture: Texture<Flat, Dim2, RGBA32F> = Texture::new(
+            self.ctx.borrow_mut().deref_mut(),
+            [dims.0, dims.1],
+            0,
+            &Sampler::default(),
+        )
+        .expect("Should have generated texture");
+
+        let vec = image.into_raw();
+        let vec: Vec<f32> = vec.into_iter().map(|e| (e as f32) / 255.0).collect();
+
+        println!("texels: {} -- {:?}", vec.len(), dims);
+        texture
+            .upload_raw(GenMipmaps::No, vec.as_slice())
+            .expect("Should have uploaded texture");
+
+        ColormapHandle { texture }
+    }
+
+    pub fn texture_from_image(&self, image: image::GrayImage, mipmaps: usize) -> TextureHandle {
+        let dims = image.dimensions();
+        let texture: Texture<Flat, Dim2, R32F> = Texture::new(
+            self.ctx.borrow_mut().deref_mut(),
+            [dims.0, dims.1],
+            mipmaps,
+            &Sampler::default(),
+        )
+        .expect("Should have generated texture");
+
+        let vec = image.into_raw();
+        let vec: Vec<f32> = vec.into_iter().map(|e| (e as f32) / 255.0).collect();
+
+        println!("texels: {} -- {:?}", vec.len(), dims);
+        texture
+            .upload_raw(GenMipmaps::Yes, vec.as_slice())
+            .expect("Should have uploaded texture");
+
+        TextureHandle { texture }
+    }
+
     pub fn texture<T: TextureRenderer>(&mut self, texture_renderer: &T) -> TextureHandle {
         // allocate framebuffer
 
@@ -103,12 +152,17 @@ impl<C: Surface> CanvasGate<C> {
         let texture: Texture<Flat, Dim2, R32F> = Texture::new(
             self.ctx.borrow_mut().deref_mut(),
             texture_renderer.texture_size(),
-            5,
+            texture_renderer.mipmaps(),
             &Sampler::default(),
         )
         .expect("Should have generated texture");
 
         let texels = buffer.color_slot().get_raw_texels();
+        println!(
+            "texels: {} -- {:?}",
+            texels.len(),
+            texture_renderer.texture_size()
+        );
         texture
             .upload_raw(GenMipmaps::Yes, texels.as_slice())
             .expect("Should have uploaded texture");
@@ -125,14 +179,15 @@ impl<C: Surface> CanvasGate<C> {
         //        let layer_buffer: Framebuffer<Flat, Dim2, RGBA32F, ()> = Framebuffer::new(self.ctx.borrow_mut().deref_mut(), self.render_size, 0)
         //            .expect("Should have created framebuffer");
 
-        let vertex: [Vertex; 1] = [Vertex::new([-1.0, -1.0])];
-
-        let _unit_quad = TessBuilder::new(self.ctx.borrow_mut().deref_mut())
-            .add_vertices(vertex)
-            .set_mode(Mode::Point)
-            .build();
+        //        let vertex: [Vertex; 1] = [Vertex::new([-1.0, -1.0])];
+        //
+        //        let _unit_quad = TessBuilder::new(self.ctx.borrow_mut().deref_mut())
+        //            .add_vertices(vertex)
+        //            .set_mode(Mode::Point)
+        //            .build();
         //            .expect("Should have tesselated");
 
+        // TODO: preserve buffer between layers.
         let pipeline_builder = self.ctx.borrow_mut().deref_mut().pipeline_builder();
         pipeline_builder.pipeline(&self.buffer, [0., 0.0, 0., 0.], |pipeline, shd_gate| {
             let mut layer = LayerGate::new(
@@ -170,7 +225,7 @@ impl<C: Surface> CanvasGate<C> {
         //        });
     }
 
-    pub(crate) fn get_buffer(&self) -> &Framebuffer<Flat, Dim2, (), ()> {
+    pub(crate) fn get_buffer(&self) -> &Framebuffer<Flat, Dim2, CS, ()> {
         &self.buffer
     }
 }

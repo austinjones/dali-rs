@@ -1,3 +1,4 @@
+use luminance::pixel::Pixel;
 use luminance::pixel::R32F;
 use luminance::shader::program::Program;
 use luminance::tess::{Mode, Tess, TessBuilder, TessError};

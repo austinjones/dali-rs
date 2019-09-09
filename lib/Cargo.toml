@@ -1,0 +1,26 @@
+[package]
+name = "dali"
+version = "0.1.0"
+authors = ["Austin Jones <austinbaysjones@gmail.com>"]
+edition = "2018"
+
+
+# TODO: Features
+[dependencies]
+luminance = "0.32.0"
+luminance-derive = "0.1.1"
+luminance-glfw = "0.6.1"
+image = "0.22.1"
+
+# Cache
+dirs = "2.0.2"
+uuid = { version = "0.7.4", features = ["v4"] }
+same-file = "1.0.5"
+# TODO: file locking for cache
+# file-lock = "1.1.20"
+rev_lines = "0.2.1"
+
+# Texture Synthesis
+[dependencies.texture-synthesis]
+git = "https://github.com/austinjones/texture-synthesis.git"
+branch = "multipixel"

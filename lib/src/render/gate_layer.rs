@@ -8,6 +8,7 @@ use luminance::context::GraphicsContext;
 use luminance::depth_test::DepthTest;
 use luminance::pipeline::{BoundTexture, Pipeline, ShadingGate};
 use luminance::pixel::Floating;
+use luminance::pixel::Pixel;
 use luminance::render_state::RenderState;
 use luminance::shader::program::{Program, Uniform};
 use luminance::tess::{Mode, TessBuilder};
@@ -77,6 +78,41 @@ impl<'a, C: GraphicsContext> LayerGate<'a, C> {
         F: FnOnce(&mut StippleGate),
     {
         println!("Copying from texture...");
+        let mut stipple_gate = StippleGate::new();
+
+        // user generates shape instance data
+        callback(&mut stipple_gate);
+
+        // tesselate them!
+        let instances = stipple_gate.instances();
+
+        const QUAD: [crate::render::semantics_stipple::Vertex; 6] = [
+            crate::render::semantics_stipple::Vertex {
+                position: crate::render::semantics_stipple::VertexPosition::new([-1.0, -1.0]),
+            },
+            crate::render::semantics_stipple::Vertex {
+                position: crate::render::semantics_stipple::VertexPosition::new([1.0, -1.0]),
+            },
+            crate::render::semantics_stipple::Vertex {
+                position: crate::render::semantics_stipple::VertexPosition::new([-1.0, 1.0]),
+            },
+            crate::render::semantics_stipple::Vertex {
+                position: crate::render::semantics_stipple::VertexPosition::new([-1.0, 1.0]),
+            },
+            crate::render::semantics_stipple::Vertex {
+                position: crate::render::semantics_stipple::VertexPosition::new([1.0, -1.0]),
+            },
+            crate::render::semantics_stipple::Vertex {
+                position: crate::render::semantics_stipple::VertexPosition::new([1.0, 1.0]),
+            },
+        ];
+
+        let tess = TessBuilder::new(self.ctx.borrow_mut().deref_mut())
+            .add_vertices(QUAD)
+            .add_instances(instances.as_slice())
+            .set_mode(Mode::Triangle)
+            .build()
+            .unwrap();
         // read from the offscreen framebuffer and output it into the back buffer
 
         // we must bind the offscreen framebuffer color content so that we can pass it to a shader
@@ -97,54 +133,6 @@ impl<'a, C: GraphicsContext> LayerGate<'a, C> {
                     .set_depth_test(DepthTest::Off);
 
                 rdr_gate.render(render_state, |tess_gate| {
-                    let mut instance_gate = StippleGate::new();
-
-                    // user generates shape instance data
-                    callback(&mut instance_gate);
-
-                    // tesselate them!
-                    let instances = instance_gate.instances();
-
-                    const QUAD: [crate::render::semantics_stipple::Vertex; 6] = [
-                        crate::render::semantics_stipple::Vertex {
-                            position: crate::render::semantics_stipple::VertexPosition::new([
-                                -1.0, -1.0,
-                            ]),
-                        },
-                        crate::render::semantics_stipple::Vertex {
-                            position: crate::render::semantics_stipple::VertexPosition::new([
-                                1.0, -1.0,
-                            ]),
-                        },
-                        crate::render::semantics_stipple::Vertex {
-                            position: crate::render::semantics_stipple::VertexPosition::new([
-                                -1.0, 1.0,
-                            ]),
-                        },
-                        crate::render::semantics_stipple::Vertex {
-                            position: crate::render::semantics_stipple::VertexPosition::new([
-                                -1.0, 1.0,
-                            ]),
-                        },
-                        crate::render::semantics_stipple::Vertex {
-                            position: crate::render::semantics_stipple::VertexPosition::new([
-                                1.0, -1.0,
-                            ]),
-                        },
-                        crate::render::semantics_stipple::Vertex {
-                            position: crate::render::semantics_stipple::VertexPosition::new([
-                                1.0, 1.0,
-                            ]),
-                        },
-                    ];
-
-                    let tess = TessBuilder::new(self.ctx.borrow_mut().deref_mut())
-                        .add_vertices(QUAD)
-                        .add_instances(instances.as_slice())
-                        .set_mode(Mode::Triangle)
-                        .build()
-                        .unwrap();
-
                     // render them!
                     tess_gate.render(self.ctx.borrow_mut().deref_mut(), (&tess).into());
                 });

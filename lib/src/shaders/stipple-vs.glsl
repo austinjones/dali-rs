@@ -18,7 +18,7 @@ vec2 rotate(vec2 v, float a) {
 }
 
 vec2 texture_position() {
-  return vec2(0.5, 0.5) + vec2(0.25, 0.25) * position;
+  return vec2(0.5, 0.5) + vec2(0.5, -0.5) * position;
 }
 
 vec4 vertex_position() {
@@ -33,7 +33,7 @@ vec2 colormap_position() {
   vec2 rotated =  rotate(scaled, rotation);
   vec2 aspected = vec2(1.0 / aspect_ratio, 1.0) * rotated;
   vec2 translated = translation + aspected;
-  return vec2(0.5, 0.5) + vec2(0.25, 0.25) * translated;
+  return vec2(0.5, 0.5) + vec2(0.5, -0.5) * translated;
 }
 
 void main() {

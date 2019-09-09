@@ -1,12 +1,12 @@
 extern crate dali;
 use dali::texture_renderers::*;
-use dali::{DaliContext, DaliContextOptions, Stipple};
+use dali::{DaliContext, Stipple};
 
 
 const EXAMPLE_FS: &'static str = include_str!("example-fs.glsl");
 pub fn main() {
-    let mut runtime = DaliContext::new(DaliContextOptions { size: (650, 400) });
-    let mut pipeline = runtime.pipeline();
+    let mut runtime = DaliContext::new();
+    let mut pipeline = runtime.pipeline((650, 400));
 
     let simple_waffle = FragmentShaderRenderer::new(EXAMPLE_FS, 512, 3);
     pipeline.preview_canvas(|canvas_gate| {
