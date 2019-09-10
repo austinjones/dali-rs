@@ -91,7 +91,6 @@ impl DaliPipeline<GlfwSurface> {
         let vec = image.into_raw();
         let vec: Vec<f32> = vec.into_iter().map(|e| (e as f32) / 255.0).collect();
 
-        println!("texels: {} -- {:?}", vec.len(), dims);
         texture
             .upload_raw(GenMipmaps::No, vec.as_slice())
             .expect("Should have uploaded texture");
@@ -112,7 +111,6 @@ impl DaliPipeline<GlfwSurface> {
         let vec = image.into_raw();
         let vec: Vec<f32> = vec.into_iter().map(|e| (e as f32) / 255.0).collect();
 
-        println!("texels: {} -- {:?}", vec.len(), dims);
         texture
             .upload_raw(GenMipmaps::Yes, vec.as_slice())
             .expect("Should have uploaded texture");
@@ -155,11 +153,6 @@ impl DaliPipeline<GlfwSurface> {
             .expect("Should have generated texture");
 
         let texels: Vec<f32> = buffer.color_slot().get_raw_texels();
-        println!(
-            "texels: {} -- {:?}",
-            texels.len(),
-            texture_renderer.texture_size()
-        );
         texture
             .upload_raw(GenMipmaps::Yes, texels.as_slice())
             .expect("Should have uploaded texture");
