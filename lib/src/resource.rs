@@ -112,7 +112,7 @@ pub enum ContainsError {
 
 impl ResourceStorage {
     pub(crate) fn new(storage_loc: PathBuf) -> Result<ResourceStorage, ResourceError> {
-        use std::str::FromStr;
+        
 
         if storage_loc.is_file() {
             return Err(ResourceError::ResourceStorageIsFile);
