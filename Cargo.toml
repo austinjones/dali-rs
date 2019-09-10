@@ -1,6 +1,24 @@
-[workspace]
+[package]
+name = "dali"
+version = "0.2.0"
+license = "Apache-2.0"
+authors = ["Austin Jones <austinbaysjones@gmail.com>"]
+description = "A rendering library for fast digital painting"
+keywords = ["rendering", "graphics", "generative", "art", "dali"]
+categories = ["rendering::graphics-api"]
+homepage = "https://github.com/austinjones/dali-rs"
+repository = "https://github.com/austinjones/dali-rs"
+readme = "README.md"
+edition = "2018"
 
-members = [
-    "cli",
-    "lib"
-]
+[badges]
+maintenance = { status = "actively-developed" }
+
+[dependencies]
+luminance = "0.33.0"
+luminance-derive = "0.2.0"
+luminance-glfw = "0.7.0"
+image = "0.22.1"
+
+[dev-dependencies]
+rand = "0.7.0"
