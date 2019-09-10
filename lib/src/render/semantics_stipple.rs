@@ -33,22 +33,14 @@ pub enum StippleSemantics {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Vertex)]
 #[vertex(sem = "StippleSemantics")]
-pub(crate) struct Vertex {
+pub struct Vertex {
     pub position: VertexPosition,
-}
-
-impl Vertex {
-    pub fn new(position: [f32; 2]) -> Vertex {
-        Vertex {
-            position: VertexPosition::new(position),
-        }
-    }
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Vertex)]
 #[vertex(sem = "StippleSemantics", instanced = "true")]
-pub(crate) struct VertexInstance {
+pub struct VertexInstance {
     pub translation: VertexInstanceTranslation,
     pub scale: VertexInstanceScale,
     pub colormap_scale: VertexInstanceColormapScale,

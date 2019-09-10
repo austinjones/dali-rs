@@ -7,9 +7,9 @@ edition = "2018"
 
 # TODO: Features
 [dependencies]
-luminance = "0.32.0"
-luminance-derive = "0.1.1"
-luminance-glfw = "0.6.1"
+luminance = "0.33.0"
+luminance-derive = "0.2.0"
+luminance-glfw = "0.7.0"
 image = "0.22.1"
 
 # Cache

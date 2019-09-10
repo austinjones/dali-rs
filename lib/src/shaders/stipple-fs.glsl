@@ -16,7 +16,7 @@ void main() {
     discard;
   }
 
-//  frag = vec4(color.rgb, alpha.x * color.a);
-  frag = vec4(1.0, alpha.x, alpha.x, 1.0);
+  frag = vec4(color.rgb, alpha.x * color.a);
+//  frag = vec4(1.0, alpha.x, alpha.x, 1.0);
 //  frag = pow(frag, vec4(1./2.2));
 }

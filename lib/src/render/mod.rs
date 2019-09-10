@@ -1,6 +1,5 @@
-mod debug_helper;
 mod gate_canvas;
 mod gate_layer;
 mod gate_stipple;
-pub mod pipeline;
+pub(crate) mod pipeline;
 mod semantics_stipple;

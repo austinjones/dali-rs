@@ -1,23 +1,25 @@
-use crate::render::semantics_stipple::VertexInstance;
 use crate::stipple::Stipple;
+use crate::texture::TextureHandle;
 
 /// Collects Stipple instances from the user, and provides an owned vec to LayerGate when the user has finished generating instances.
-pub struct StippleGate {
-    stipples: Vec<VertexInstance>,
+pub struct StippleGate<'t> {
+    pub(crate) texture: &'t TextureHandle,
+    stipples: Vec<Stipple>,
 }
 
-impl StippleGate {
-    pub fn new() -> StippleGate {
+impl<'t> StippleGate<'t> {
+    pub fn new(texture: &'t TextureHandle) -> StippleGate {
         StippleGate {
+            texture,
             stipples: Vec::new(),
         }
     }
 
-    pub(crate) fn instances(self) -> Vec<VertexInstance> {
-        self.stipples
+    pub(crate) fn instances(&self) -> impl Iterator<Item=&Stipple> {
+        self.stipples.iter()
     }
 
-    pub fn draw(&mut self, stipple: &Stipple) {
-        self.stipples.push(stipple.into());
+    pub fn draw(&mut self, stipple: Stipple) {
+        self.stipples.push(stipple);
     }
 }
