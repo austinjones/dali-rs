@@ -11,6 +11,10 @@ repository = "https://github.com/austinjones/dali-rs"
 readme = "README.md"
 edition = "2018"
 
+exclude = [
+    "examples/*",
+]
+
 [badges]
 maintenance = { status = "actively-developed" }
 
