@@ -1,13 +1,11 @@
-use crate::resource::ResourceError::ResourceStorageIsFile;
-use image::{DynamicImage, ImageError, ImageFormat, ImageOutputFormat};
-use rev_lines::RevLines;
-use same_file::is_same_file;
-use std::fs::{File, FileType, OpenOptions};
-use std::future::Future;
+use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+
+use image::{DynamicImage, ImageOutputFormat};
+use rev_lines::RevLines;
+use same_file::is_same_file;
 use uuid::Uuid;
 
 pub struct ResourceStorage {
@@ -59,14 +57,6 @@ impl Format {
             "png" => Some(Self::PNG),
             "jpg" => Some(Self::JPEG(75u8)),
             _ => None,
-        }
-    }
-
-    fn is_valid_extension(extension: &str) -> bool {
-        let lowercase = extension.to_lowercase();
-        match lowercase.as_str() {
-            "bmp" | "png" | "jpg" => true,
-            _ => false,
         }
     }
 
@@ -130,7 +120,7 @@ impl ResourceStorage {
 
         if !storage_loc.exists() {
             std::fs::create_dir_all(storage_loc.as_path())
-                .map_err(|e| ResourceError::CreateFailed((e)))?
+                .map_err(|e| ResourceError::CreateFailed(e))?
         }
 
         let index_loc = Self::index_loc(storage_loc.as_path());
@@ -154,37 +144,37 @@ impl ResourceStorage {
                 .storage_loc
                 .read_dir()
                 .map_err(|e| ResourceError::CreateFailed(e))?
-            {
-                let path = match entry {
-                    Ok(e) => e,
-                    Err(e) => {
-                        continue;
+                {
+                    let path = match entry {
+                        Ok(e) => e,
+                        Err(_) => {
+                            continue;
+                        }
+                    }
+                        .path();
+
+                    let filename = match safe_filename(&path) {
+                        Some(t) => t,
+                        None => {
+                            continue;
+                        }
+                    };
+
+                    if Format::from_path(path.as_path()).is_some() {
+                        let mut parts = filename.split(".");
+                        let id = parts.next().unwrap();
+                        if id.len() != 36 {
+                            continue;
+                        }
+
+                        let write = filename.to_string() + "\n";
+                        if Uuid::parse_str(&id).is_ok() {
+                            open.write(write.as_bytes())
+                                .map(|_| ())
+                                .map_err(|e| ResourceError::CreateFailed(e))?
+                        }
                     }
                 }
-                .path();
-
-                let filename = match safe_filename(&path) {
-                    Some(t) => t,
-                    None => {
-                        continue;
-                    }
-                };
-
-                if Format::from_path(path.as_path()).is_some() {
-                    let mut parts = filename.split(".");
-                    let id = parts.next().unwrap();
-                    if id.len() != 36 {
-                        continue;
-                    }
-
-                    let write = filename.to_string() + "\n";
-                    if Uuid::parse_str(&id).is_ok() {
-                        open.write(write.as_bytes())
-                            .map(|e| ())
-                            .map_err(|e| ResourceError::CreateFailed(e))?
-                    }
-                }
-            }
         }
 
         Ok(storage)
@@ -227,15 +217,15 @@ impl ResourceStorage {
             .storage_loc
             .read_dir()
             .map_err(|e| ContainsError::ReadError(e))?
-        {
-            let entry = file.map_err(|e| ContainsError::ReadError(e))?;
-            if entry.path().is_file()
-                && is_same_file(entry.path(), reference)
-                    .map_err(|e| ContainsError::ComparisonError(e))?
             {
-                return Ok(true);
+                let entry = file.map_err(|e| ContainsError::ReadError(e))?;
+                if entry.path().is_file()
+                    && is_same_file(entry.path(), reference)
+                    .map_err(|e| ContainsError::ComparisonError(e))?
+                {
+                    return Ok(true);
+                }
             }
-        }
 
         Ok(false)
     }
@@ -286,7 +276,7 @@ impl ResourceStorage {
         let path = self.path(key, format);
 
         let result_path = std::fs::copy(source, path.as_path())
-            .map(|u| path.clone())
+            .map(|_| path.clone())
             .map_err(|e| PostError::NotWritable(e));
 
         self.append_index(path.file_name().unwrap().to_str().unwrap())
@@ -314,7 +304,7 @@ impl ResourceStorage {
             .map_err(|e| PostError::WriteFailed(e))?;
 
         self.append_index(path.file_name().unwrap().to_str().unwrap())
-            .map_err(|e| PostError::IndexWriteFailed(e));
+            .map_err(|e| PostError::IndexWriteFailed(e))?;
 
         Ok(path)
     }
@@ -367,7 +357,7 @@ impl<'a> ResourceStream<'a> {
         match safe_filename(path.as_path()) {
             Some(t) => self
                 .update_file(t.as_str())
-                .map(|e| ())
+                .map(|_| ())
                 .map_err(|e| StreamUpdateError::WriteError(e)),
             None => Err(StreamUpdateError::InvalidFilename),
         }
@@ -417,7 +407,7 @@ impl<'a> ResourceStream<'a> {
 
             let uuid = match Uuid::parse_str(uuid) {
                 Ok(uuid) => uuid,
-                Err(e) => {
+                Err(_) => {
                     continue;
                 }
             };

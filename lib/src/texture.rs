@@ -1,16 +1,15 @@
-use luminance::pixel::Pixel;
 use luminance::pixel::R32F;
 use luminance::shader::program::Program;
 use luminance::tess::{Mode, Tess, TessBuilder, TessError};
 use luminance::texture::{Dim2, Flat, Texture};
-
 use luminance_glfw::Surface;
 
-use crate::texture::semantics::TextureRendererInterface;
 use semantics::*;
 
+use crate::texture::semantics::TextureRendererInterface;
+
 pub struct TextureHandle {
-    pub(crate) texture: Texture<Flat, Dim2, R32F>,
+    pub texture: Texture<Flat, Dim2, R32F>,
 }
 
 /// Implements the functionality requires to fully render a mipmapped texture, that can be used as a stipple pattern
@@ -76,6 +75,7 @@ pub mod renderers {
     }
 
     const GEN_VS: &'static str = include_str!("shaders/gen-vs.glsl");
+
     impl TextureRenderer for FragmentShaderRenderer {
         fn compile(&self) -> Program<(), (), TextureRendererInterface> {
             let (gen_program, warnings) =
@@ -85,7 +85,7 @@ pub mod renderers {
                     None,
                     self.fragment_shader.as_str(),
                 )
-                .expect("merge program creation");
+                    .expect("merge program creation");
 
             for warning in warnings.iter() {
                 eprintln!("Warning: {}", warning);

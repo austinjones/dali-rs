@@ -8,224 +8,38 @@ use luminance::pixel::{R32F, R8UI, RG32F, RG8UI, RGBA32F};
 use luminance::render_state::RenderState;
 use luminance::tess::{Mode, TessBuilder};
 use luminance::texture::{Dim2, Flat, GenMipmaps, Sampler, Texture};
-use luminance_glfw::Surface;
+use std::iter::Iterator;
 
 use crate::colormap::ColormapHandle;
 use crate::render::gate_layer::LayerGate;
 use crate::render::semantics_stipple::Vertex;
 use crate::texture::{TextureHandle, TextureRenderer};
 use image::{DynamicImage, LumaA};
+use luminance::context::GraphicsContext;
 
 /// CanvasGate represents an start-to-finish render to a Framebuffer.
 /// Manages high-level resources such as Color Maps, Textures, and Layers.
-pub struct CanvasGate<C, CS: ColorSlot<Flat, Dim2>> {
-    pub ctx: Rc<RefCell<C>>,
-    render_size: [u32; 2],
-    //    program: Program<(), (), MergeInterface>,
-    pub buffer: Framebuffer<Flat, Dim2, CS, ()>,
+pub struct CanvasGate<'a> {
+    layers: Vec<LayerGate<'a>>
 }
 
-impl<C: Surface, CS: ColorSlot<Flat, Dim2>> CanvasGate<C, CS> {
-    pub fn new(
-        ctx: Rc<RefCell<C>>,
-        render_size: [u32; 2],
-        buffer: Framebuffer<Flat, Dim2, CS, ()>,
-    ) -> CanvasGate<C, CS> {
+impl<'a> CanvasGate<'a> {
+    pub(crate) fn new() -> CanvasGate<'a> {
         CanvasGate {
-            ctx,
-            render_size,
-            buffer,
+            layers: Vec::new()
         }
     }
 
-    pub fn context(&self) -> Rc<RefCell<C>> {
-        self.ctx.clone()
-    }
-
-    pub fn colormap<F>(&mut self, scale: f32, lambda: F) -> ColormapHandle
-    where
-        F: Fn(f32, f32) -> [f32; 4],
+    pub fn layer<F>(&mut self, colormap: &'a ColormapHandle, callback: F)
+        where
+            F: FnOnce(&mut LayerGate<'a>),
     {
-        let size = [
-            (self.render_size[0] as f32 * scale) as u32,
-            (self.render_size[1] as f32 * scale) as u32,
-        ];
-
-        let buffer_size = (size[0] * size[1]) as usize;
-        let mut buffer = Vec::with_capacity(buffer_size * 4);
-        for y in 0..size[1] {
-            for x in 0..size[0] {
-                let xf = (x as f32) / (size[0] as f32);
-                let yf = (y as f32) / (size[1] as f32);
-
-                let color = lambda(xf, yf);
-                buffer.push(color[0]);
-                buffer.push(color[1]);
-                buffer.push(color[2]);
-                buffer.push(color[3]);
-            }
-        }
-
-        let texture: Texture<Flat, Dim2, RGBA32F> = Texture::new(
-            self.ctx.borrow_mut().deref_mut(),
-            size,
-            0,
-            &Sampler::default(),
-        )
-        .expect("Failed to create colormap texture");
-
-        texture
-            .upload_raw(GenMipmaps::No, buffer.as_slice())
-            .expect("Texture should have uploaded");
-        ColormapHandle { texture }
+        let mut layer = LayerGate::new(colormap);
+        callback(&mut layer);
+        self.layers.push(layer);
     }
 
-    // TODO: share code w/ texture_from_image
-    pub fn colormap_from_image(&self, image: image::RgbaImage) -> ColormapHandle {
-        let dims = image.dimensions();
-        let texture: Texture<Flat, Dim2, RGBA32F> = Texture::new(
-            self.ctx.borrow_mut().deref_mut(),
-            [dims.0, dims.1],
-            0,
-            &Sampler::default(),
-        )
-        .expect("Should have generated texture");
-
-        let vec = image.into_raw();
-        let vec: Vec<f32> = vec.into_iter().map(|e| (e as f32) / 255.0).collect();
-
-        println!("texels: {} -- {:?}", vec.len(), dims);
-        texture
-            .upload_raw(GenMipmaps::No, vec.as_slice())
-            .expect("Should have uploaded texture");
-
-        ColormapHandle { texture }
-    }
-
-    pub fn texture_from_image(&self, image: image::GrayImage, mipmaps: usize) -> TextureHandle {
-        let dims = image.dimensions();
-        let texture: Texture<Flat, Dim2, R32F> = Texture::new(
-            self.ctx.borrow_mut().deref_mut(),
-            [dims.0, dims.1],
-            mipmaps,
-            &Sampler::default(),
-        )
-        .expect("Should have generated texture");
-
-        let vec = image.into_raw();
-        let vec: Vec<f32> = vec.into_iter().map(|e| (e as f32) / 255.0).collect();
-
-        println!("texels: {} -- {:?}", vec.len(), dims);
-        texture
-            .upload_raw(GenMipmaps::Yes, vec.as_slice())
-            .expect("Should have uploaded texture");
-
-        TextureHandle { texture }
-    }
-
-    pub fn texture<T: TextureRenderer>(&mut self, texture_renderer: &T) -> TextureHandle {
-        // allocate framebuffer
-
-        let program = texture_renderer.compile();
-        let buffer: Framebuffer<Flat, Dim2, R32F, ()> = Framebuffer::new(
-            self.ctx.borrow_mut().deref_mut(),
-            texture_renderer.texture_size(),
-            0,
-        )
-        .expect("Should have framebuffer");
-
-        let tess = texture_renderer
-            .tesselate(self.ctx.borrow_mut().deref_mut())
-            .expect("Should have tesslated");
-
-        let pipeline_builder = self.ctx.borrow_mut().deref_mut().pipeline_builder();
-        pipeline_builder.pipeline(&buffer, [0., 0., 0., 1.], |_pipeline, shd_gate| {
-            shd_gate.shade(&program, |rdr_gate, _iface| {
-                rdr_gate.render(RenderState::default(), |tess_gate| {
-                    // this will render the attributeless quad with the offscreen framebuffer color slot
-                    // bound for the shader to fetch from
-                    tess_gate.render(self.ctx.borrow_mut().deref_mut(), (&tess).into());
-                });
-            });
-        });
-
-        let texture: Texture<Flat, Dim2, R32F> = Texture::new(
-            self.ctx.borrow_mut().deref_mut(),
-            texture_renderer.texture_size(),
-            texture_renderer.mipmaps(),
-            &Sampler::default(),
-        )
-        .expect("Should have generated texture");
-
-        let texels = buffer.color_slot().get_raw_texels();
-        println!(
-            "texels: {} -- {:?}",
-            texels.len(),
-            texture_renderer.texture_size()
-        );
-        texture
-            .upload_raw(GenMipmaps::Yes, texels.as_slice())
-            .expect("Should have uploaded texture");
-
-        TextureHandle { texture }
-    }
-
-    pub fn layer<F>(&mut self, color_map: &ColormapHandle, callback: F)
-    where
-        F: FnOnce(&mut LayerGate<C>),
-    {
-        println!("Rendering layer...");
-        // allocate framebuffer
-        //        let layer_buffer: Framebuffer<Flat, Dim2, RGBA32F, ()> = Framebuffer::new(self.ctx.borrow_mut().deref_mut(), self.render_size, 0)
-        //            .expect("Should have created framebuffer");
-
-        //        let vertex: [Vertex; 1] = [Vertex::new([-1.0, -1.0])];
-        //
-        //        let _unit_quad = TessBuilder::new(self.ctx.borrow_mut().deref_mut())
-        //            .add_vertices(vertex)
-        //            .set_mode(Mode::Point)
-        //            .build();
-        //            .expect("Should have tesselated");
-
-        // TODO: preserve buffer between layers.
-        let pipeline_builder = self.ctx.borrow_mut().deref_mut().pipeline_builder();
-        pipeline_builder.pipeline(&self.buffer, [0., 0.0, 0., 0.], |pipeline, shd_gate| {
-            let mut layer = LayerGate::new(
-                self.ctx.clone(),
-                self.render_size,
-                color_map,
-                pipeline,
-                shd_gate,
-            );
-            callback(&mut layer);
-        });
-
-        // return framebuffer to renderer
-        //        let pipeline_builder = self.ctx.borrow_mut().deref_mut().pipeline_builder();
-        //        pipeline_builder.render(&self.buffer, [0.4, 0., 0., 1.], |render, shd_gate| {
-        //            // we must bind the offscreen framebuffer color content so that we can pass it to a shader
-        //            let bound_texture = render.bind_texture(layer_buffer.color_slot());
-        //
-        //            let program = &self.program;
-        //            shd_gate.shade(&self.program, |rdr_gate, iface| {
-        //                // we update the texture with the bound texture
-        //                iface.texture.update(&bound_texture);
-        //                iface.discardThreshold.update(0.01f32);
-        //
-        //                let render_state = RenderState::default();
-        ////                    .set_blending((Additive, SrcAlpha, SrcAlphaComplement))
-        ////                    .set_depth_test(DepthTest::Off);
-        //
-        //                rdr_gate.render(render_state, |tess_gate| {
-        //                    // this will render the attributeless quad with the offscreen framebuffer color slot
-        //                    // bound for the shader to fetch from
-        //                    tess_gate.render(self.ctx.borrow_mut().deref_mut(), (&tess).into());
-        //                });
-        //            });
-        //        });
-    }
-
-    pub(crate) fn get_buffer(&self) -> &Framebuffer<Flat, Dim2, CS, ()> {
-        &self.buffer
+    pub(crate) fn layers(&self) -> impl Iterator<Item = &LayerGate<'a>> {
+        self.layers.iter()
     }
 }

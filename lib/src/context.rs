@@ -1,23 +1,19 @@
 use std::cell::RefCell;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use luminance_glfw::{GlfwSurface, Surface, WindowDim, WindowOpt};
-
-use crate::resource::{ResourceError, ResourceStorage};
-use crate::DaliPipeline;
-use std::io;
 use texture_synthesis::{Session, SessionBuilder};
 use uuid::Uuid;
+
+use crate::DaliPipeline;
+use crate::resource::{ResourceError, ResourceStorage};
 
 /// Wraps a GlfwSurface, and initializes the Dali renderer
 /// Use .pipeline() to start rendering
 pub struct DaliContext {
     storage_loc: PathBuf,
-}
-
-pub enum StorageError {
-    IoError(io::Error),
 }
 
 impl DaliContext {
@@ -47,7 +43,7 @@ impl DaliContext {
             "Hello, world!",
             WindowOpt::default(),
         )
-        .expect("GLFW surface creation");
+            .expect("GLFW surface creation");
 
         DaliPipeline::new(surface, [width, height])
     }
