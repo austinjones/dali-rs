@@ -1,12 +1,14 @@
 in vec2 position;
 in vec2 translation;
 in float rotation;
+in float gamma;
 in vec2 scale;
 in vec2 colormap_scale;
 
 out vec3 v_color;
 out vec2 v_texcoords;
 out vec2 v_colorcoords;
+out float v_gamma;
 
 uniform float aspect_ratio;
 
@@ -40,4 +42,5 @@ void main() {
   gl_Position = vertex_position();
   v_texcoords = texture_position();
   v_colorcoords = colormap_position();
+  v_gamma = gamma;
 }

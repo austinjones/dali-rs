@@ -28,6 +28,9 @@ pub enum StippleSemantics {
 
     #[sem(name = "rotation", repr = "f32", wrapper = "VertexInstanceRotation")]
     InstanceRotation,
+
+    #[sem(name = "gamma", repr = "f32", wrapper = "VertexInstanceGamma")]
+    InstanceGamma,
 }
 
 #[repr(C)]
@@ -45,6 +48,7 @@ pub struct VertexInstance {
     pub scale: VertexInstanceScale,
     pub colormap_scale: VertexInstanceColormapScale,
     pub rotation: VertexInstanceRotation,
+    pub gamma: VertexInstanceGamma,
 }
 
 impl From<&Stipple> for VertexInstance {
@@ -54,6 +58,7 @@ impl From<&Stipple> for VertexInstance {
             scale: VertexInstanceScale::new(stipple.scale),
             colormap_scale: VertexInstanceColormapScale::new(stipple.colormap_scale),
             rotation: VertexInstanceRotation::new(stipple.rotation),
+            gamma: VertexInstanceGamma::new(stipple.gamma),
         }
     }
 }

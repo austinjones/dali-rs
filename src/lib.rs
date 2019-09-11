@@ -23,7 +23,8 @@ impl DaliContext {
 
     /// Creates a new render pipeline
     pub fn pipeline(&mut self, (width, height): (u32, u32)) -> DaliPipeline<GlfwSurface> {
-        let surface = GlfwSurface::new(WindowDim::Windowed(width, height), "Dali Preview", WindowOpt::default())
+        let opts = WindowOpt::default().set_num_samples(8);
+        let surface = GlfwSurface::new(WindowDim::Windowed(width, height), "Dali Preview", opts)
             .expect("GLFW surface creation");
 
         DaliPipeline::new(surface, [width, height])
