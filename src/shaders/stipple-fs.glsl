@@ -10,14 +10,13 @@ in vec2 v_colorcoords;
 out vec4 frag;
 
 void main() {
-  vec4 alpha = texture(source_texture, v_texcoords);
-  vec4 color = texture(source_colormap, v_colorcoords);
+    vec4 alpha = texture(source_texture, v_texcoords);
+    vec4 color = texture(source_colormap, v_colorcoords);
 
-  if (alpha.x < discard_threshold) {
-    discard;
-  }
+    if (alpha.x < discard_threshold) {
+        discard;
+    }
 
-  frag = vec4(color.rgb, pow(alpha.x * color.a, v_gamma));
-//  frag = vec4(1.0, alpha.x, alpha.x, 1.0);
-//  frag = pow(frag, vec4(1./2.2));
+    float alpha_final = pow(alpha.x * color.a, v_gamma);
+    frag = vec4(alpha_final * color.rgb, alpha_final);
 }
