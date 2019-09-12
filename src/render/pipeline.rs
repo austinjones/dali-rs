@@ -1,6 +1,6 @@
 use image::Rgba;
 use luminance::blending::Equation::Additive;
-use luminance::blending::Factor::{SrcAlpha, SrcAlphaComplement};
+use luminance::blending::Factor::{SrcAlpha, SrcAlphaComplement, One, DstAlpha, Zero};
 use luminance::context::GraphicsContext;
 use luminance::depth_test::DepthTest;
 use luminance::framebuffer::{ColorSlot, Framebuffer};
@@ -16,9 +16,10 @@ use luminance_glfw::{Action, GlfwSurface, Key, Surface, WindowEvent};
 use crate::colormap::ColormapHandle;
 use crate::render::gate_canvas::CanvasGate;
 use crate::render::gate_layer::LayerGate;
-use crate::render::semantics_stipple::*;
 use crate::texture::TextureHandle;
 use crate::TextureRenderer;
+use crate::render::semantics::stipple;
+use crate::render::semantics::divalpha;
 
 /// Launches and executes end-to-end Dali renders.
 /// `preview_canvas` allows live previews, and
@@ -135,11 +136,11 @@ impl DaliPipeline<GlfwSurface> {
 
         let pipeline_builder = &mut self.context.pipeline_builder();
         pipeline_builder.pipeline(&buffer, [0., 0., 0., 1.], |_pipeline, shd_gate| {
-            shd_gate.shade(&program, |rdr_gate, _| {
+            shd_gate.shade(&program, |_, rdr_gate| {
                 rdr_gate.render(RenderState::default(), |tess_gate| {
                     // this will render the attributeless quad with the offscreen framebuffer color slot
                     // bound for the shader to fetch from
-                    tess_gate.render(&mut self.context, (&tess).into());
+                    tess_gate.render(&mut self.context, &tess);
                 });
             });
         });
@@ -165,14 +166,14 @@ impl DaliPipeline<GlfwSurface> {
     pub fn preview_canvas<'a, F>(&'a mut self, callback: F)
         where F: FnOnce(&mut CanvasGate<'a>)
     {
-        // setup
-        let mut back_buffer: Framebuffer<Flat, Dim2, (), ()> =
-            Framebuffer::back_buffer(self.render_size);
+        let mut back_buffer = self.context.back_buffer().expect("Should have backbuffer");
 
         let mut canvas_gate = CanvasGate::new();
         callback(&mut canvas_gate);
 
         self.draw(canvas_gate.layers(), &mut back_buffer);
+
+//        self.copy(buffer, &mut back_buffer);
 
         self.context.swap_buffers();
 
@@ -202,13 +203,13 @@ impl DaliPipeline<GlfwSurface> {
 
         let mut canvas_gate = CanvasGate::new();
         callback(&mut canvas_gate);
+
         self.draw(canvas_gate.layers(), &mut buffer);
 
         let width = buffer.width();
         let height = buffer.height();
         let raw_texels: Vec<f32> = buffer.color_slot().get_raw_texels();
         let raw_texels = raw_texels.into_iter().map(|e| (e / 255.0) as u8).collect();
-        // TODO: figure out how to get the raw pixel data
         let buffer = image::ImageBuffer::from_raw(width, height, raw_texels).unwrap();
         if self.output_size == [width, height] {
             return buffer;
@@ -222,51 +223,41 @@ impl DaliPipeline<GlfwSurface> {
         )
     }
 
-    fn draw<'i, 'a: 'i, CS: ColorSlot<Flat, Dim2>, I: Iterator<Item=&'i LayerGate<'a>>>(&mut self, layers: I, buffer: &mut Framebuffer<Flat, Dim2, CS, ()>) {
-        let (stipple_program, warnings) =
-            Program::<StippleSemantics, (), StippleInterface>::from_strings(
-                None, STIPPLE_VS, None, STIPPLE_FS,
-            )
-                .expect("program creation");
+    fn draw<'i, 'a: 'i, CS: ColorSlot<Flat, Dim2>, I: Iterator<Item=&'i LayerGate<'a>>>(&mut self, layers: I, target_buffer: &mut Framebuffer<Flat, Dim2, CS, ()>) {
+        let mut buffer: Framebuffer<Flat, Dim2, RGBA32F, ()> =
+            Framebuffer::new(&mut self.context, self.render_size, 0).unwrap();
 
-        for warning in warnings.iter() {
-            eprintln!("Warning: {}", warning);
-        }
+        let stipple_program = crate::render::semantics::stipple::compile();
+        let divalpha_program = crate::render::semantics::divalpha::compile();
 
-        // hack, because luminance won't render the 2nd tesselation if any have been dropped!?
-        // collect them all in a vec until rendering is finished
-        let mut tesses = Vec::new();
-        self.context.pipeline_builder().pipeline(buffer, [0., 0., 0., 0.], |pipeline, shd_gate| {
+        let stipple_quad: [stipple::Vertex; 6] = [
+            stipple::Vertex::new([-1.0, -1.0]),
+            stipple::Vertex::new([1.0, -1.0]),
+            stipple::Vertex::new([-1.0, 1.0]),
+            stipple::Vertex::new([-1.0, 1.0]),
+            stipple::Vertex::new([1.0, -1.0]),
+            stipple::Vertex::new([1.0, 1.0]),
+        ];
+
+        let divalpha_quad: [divalpha::Vertex; 6] = [
+            divalpha::Vertex::new([-1.0, -1.0]),
+            divalpha::Vertex::new([1.0, -1.0]),
+            divalpha::Vertex::new([-1.0, 1.0]),
+            divalpha::Vertex::new([-1.0, 1.0]),
+            divalpha::Vertex::new([1.0, -1.0]),
+            divalpha::Vertex::new([1.0, 1.0]),
+        ];
+
+        self.context.pipeline_builder().pipeline(&buffer, [0.0, 0.0, 0.0, 0.0], |pipeline, shd_gate| {
             for layer in layers {
                 for stipples in layer.stipples() {
                     let aspect = self.render_size[0] as f32 / self.render_size[1] as f32;
-                    let instances: Vec<VertexInstance> = stipples.instances()
+                    let instances: Vec<stipple::VertexInstance> = stipples.instances()
                         .map(|stipple| stipple.into())
                         .collect();
 
-                    const QUAD: [Vertex; 6] = [
-                        Vertex {
-                            position: VertexPosition::new([-1.0, -1.0]),
-                        },
-                        Vertex {
-                            position: VertexPosition::new([1.0, -1.0]),
-                        },
-                        Vertex {
-                            position: VertexPosition::new([-1.0, 1.0]),
-                        },
-                        Vertex {
-                            position: VertexPosition::new([-1.0, 1.0]),
-                        },
-                        Vertex {
-                            position: VertexPosition::new([1.0, -1.0]),
-                        },
-                        Vertex {
-                            position: VertexPosition::new([1.0, 1.0]),
-                        },
-                    ];
-
                     let tess: Tess = TessBuilder::new(&mut self.context)
-                        .add_vertices(QUAD)
+                        .add_vertices(stipple_quad)
                         .add_instances(instances.as_slice())
                         .set_mode(Mode::Triangle)
                         .build()
@@ -274,10 +265,11 @@ impl DaliPipeline<GlfwSurface> {
 
                     let bound_texture = pipeline.bind_texture(&stipples.texture.texture);
                     let bound_colormap = pipeline.bind_texture(&layer.colormap.texture);
+//                    let bound_target = pipeline.bind_texture(&buffer.color_slot());
 
-                    shd_gate.shade(&stipple_program, |rdr_gate, iface| {
+                    shd_gate.shade(&stipple_program, |iface, rdr_gate| {
                         let render_state = RenderState::default()
-                            .set_blending((Additive, SrcAlpha, SrcAlphaComplement))
+                            .set_blending((Additive, One, SrcAlphaComplement))
                             .set_depth_test(DepthTest::Off);
 
                         rdr_gate.render(render_state, |tess_gate| {
@@ -287,30 +279,38 @@ impl DaliPipeline<GlfwSurface> {
                                 iface.colormap.update(&bound_colormap);
                                 iface.discard_threshold.update(0.0f32);
 
-                                tess_gate.render(&mut self.context, (&tess).into());
+                                tess_gate.render(&mut self.context, &tess);
                             }
                         });
                     });
-
-                    tesses.push(tess);
                 }
             }
+        });
+
+        self.context.pipeline_builder().pipeline(target_buffer, [0., 0., 0., 0.], |pipeline, shd_gate| {
+            shd_gate.shade(&divalpha_program, |iface, rdr_gate| {
+                let bound_layer = pipeline.bind_texture(&buffer.color_slot());
+
+                iface.source_layer.update(&bound_layer);
+
+                let render_state = RenderState::default()
+                    .set_blending((Additive, SrcAlpha, Zero))
+                    .set_depth_test(DepthTest::Off);
+
+                rdr_gate.render(render_state, |tess_gate| {
+                    let tess: Tess = TessBuilder::new(&mut self.context)
+                        .add_vertices(divalpha_quad)
+                        .set_mode(Mode::Triangle)
+                        .build()
+                        .unwrap();
+
+                    tess_gate.render(&mut self.context, &tess);
+                });
+            });
         });
     }
 }
 
-const STIPPLE_VS: &'static str = include_str!("../shaders/stipple-vs.glsl");
-const STIPPLE_FS: &'static str = include_str!("../shaders/stipple-fs.glsl");
 
-#[derive(UniformInterface)]
-pub struct StippleInterface {
-    // we only need the source texture (from the framebuffer) to fetch from
-    #[uniform(unbound, name = "source_texture")]
-    pub texture: Uniform<&'static BoundTexture<'static, Flat, Dim2, Floating>>,
-    #[uniform(unbound, name = "source_colormap")]
-    pub colormap: Uniform<&'static BoundTexture<'static, Flat, Dim2, Floating>>,
-    #[uniform(unbound, name = "aspect_ratio")]
-    pub aspect_ratio: Uniform<f32>,
-    #[uniform(unbound, name = "discard_threshold")]
-    pub discard_threshold: Uniform<f32>,
-}
+
+

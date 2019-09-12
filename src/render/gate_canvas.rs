@@ -1,21 +1,7 @@
-
-
-
-
-
-
-
-
-
-
 use std::iter::Iterator;
 
 use crate::colormap::ColormapHandle;
 use crate::render::gate_layer::LayerGate;
-
-
-
-
 
 /// CanvasGate represents an start-to-finish render to a Framebuffer.
 /// Manages high-level resources such as Color Maps, Textures, and Layers.
@@ -39,7 +25,7 @@ impl<'a> CanvasGate<'a> {
         self.layers.push(layer);
     }
 
-    pub(crate) fn layers(&self) -> impl Iterator<Item = &LayerGate<'a>> {
+    pub(crate) fn layers(&self) -> impl Iterator<Item=&LayerGate<'a>> {
         self.layers.iter()
     }
 }

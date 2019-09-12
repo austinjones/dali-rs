@@ -1,6 +1,6 @@
 [package]
 name = "dali"
-version = "0.2.0"
+version = "0.2.1"
 license = "Apache-2.0"
 authors = ["Austin Jones <austinbaysjones@gmail.com>"]
 description = "A rendering library for fast digital painting"
@@ -19,9 +19,9 @@ exclude = [
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-luminance = "0.33.0"
-luminance-derive = "0.2.0"
-luminance-glfw = "0.7.0"
+luminance = "0.34"
+luminance-derive = "0.2"
+luminance-glfw = "0.8"
 image = "0.22.1"
 
 [dev-dependencies]
