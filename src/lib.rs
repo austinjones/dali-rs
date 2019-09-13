@@ -27,7 +27,7 @@ impl DaliContext {
         let surface = GlfwSurface::new(WindowDim::Windowed(width, height), "Dali Preview", opts)
             .expect("GLFW surface creation");
 
-        DaliPipeline::new(surface, [width, height])
+        DaliPipeline::new(surface)
     }
 }
 

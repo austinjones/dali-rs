@@ -1,3 +1,4 @@
+// TODO: delete
 in vec2 position;
 
 out vec2 v_uv;
