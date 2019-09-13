@@ -9,7 +9,8 @@ use luminance::pixel::Floating;
 const STIPPLE_VS: &'static str = include_str!("../../shaders/stipple-vs.glsl");
 const STIPPLE_FS: &'static str = include_str!("../../shaders/stipple-fs.glsl");
 pub fn compile() -> Program<StippleSemantics, (), StippleInterface> {
-    let (stipple_program, warnings) =
+    // TODO: figure out how to deal with warnings.  panic?
+    let (stipple_program, _warnings) =
         Program::<StippleSemantics, (), StippleInterface>::from_strings(
             None, STIPPLE_VS, None, STIPPLE_FS,
         ).expect("program creation");

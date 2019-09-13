@@ -26,3 +26,4 @@ image = "0.22.1"
 
 [dev-dependencies]
 rand = "0.7.0"
+rand_xorshift = "0.2.0"

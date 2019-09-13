@@ -32,8 +32,8 @@ vec4 vertex_position() {
 
 vec2 colormap_position() {
     vec2 scaled = scale * colormap_scale * position;
-    vec2 rotated =  rotate(scaled, rotation);
-    vec2 aspected = vec2(1.0 / aspect_ratio, 1.0) * rotated;
+    vec2 aspected = vec2(1.0 / aspect_ratio, 1.0) * scaled;
+    vec2 rotated =  rotate(aspected, rotation);
     vec2 translated = translation + aspected;
     return vec2(0.5, 0.5) + vec2(0.5, -0.5) * translated;
 }
