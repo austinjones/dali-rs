@@ -6,7 +6,7 @@ use luminance::depth_test::DepthTest;
 use luminance::framebuffer::{ColorSlot, Framebuffer};
 use luminance::pixel::{R32F, RGBA32F};
 use luminance::render_state::RenderState;
-use luminance::tess::{Mode, Tess, TessBuilder};
+use luminance::tess::{Mode, Tess, TessBuilder, TessSlice};
 use luminance::texture::{Dim2, Flat, GenMipmaps, MagFilter, MinFilter, Sampler, Texture};
 use luminance_glfw::{Action, GlfwSurface, Key, Surface, WindowEvent};
 
@@ -15,7 +15,7 @@ use crate::render::gate_canvas::CanvasGate;
 use crate::render::gate_layer::LayerGate;
 use crate::render::semantics::stipple;
 use crate::texture::TextureHandle;
-use crate::TextureRenderer;
+use crate::{TextureRenderer, Stipple};
 
 /// Launches and executes end-to-end Dali renders.
 /// `preview_canvas` allows live previews, and
@@ -145,12 +145,12 @@ impl DaliPipeline<GlfwSurface> {
             .expect("Should have tesslated");
 
         let pipeline_builder = &mut self.context.pipeline_builder();
-        pipeline_builder.pipeline(&buffer, [0., 0., 0., 1.], |_pipeline, shd_gate| {
-            shd_gate.shade(&program, |_, rdr_gate| {
-                rdr_gate.render(RenderState::default(), |tess_gate| {
+        pipeline_builder.pipeline(&buffer, [0., 0., 0., 1.], |_pipeline, mut shd_gate| {
+            shd_gate.shade(&program, |_, mut rdr_gate| {
+                rdr_gate.render(RenderState::default(), |mut tess_gate| {
                     // this will render the attributeless quad with the offscreen framebuffer color slot
                     // bound for the shader to fetch from
-                    tess_gate.render(&mut self.context, &tess);
+                    tess_gate.render(&tess);
                 });
             });
         });
@@ -236,6 +236,7 @@ impl DaliPipeline<GlfwSurface> {
     fn draw<'i, 'a: 'i, CS: ColorSlot<Flat, Dim2>, I: Iterator<Item=&'i LayerGate<'a>>>(&mut self, layers: I, target_buffer: &mut Framebuffer<Flat, Dim2, CS, ()>) {
         let stipple_program = crate::render::semantics::stipple::compile();
 
+        const INSTANCE_CHUNK_SIZE: usize = 512;
         const QUAD: [[f32; 2]; 4] = [
             [-1.0, -1.0],
             [1.0, -1.0],
@@ -243,42 +244,58 @@ impl DaliPipeline<GlfwSurface> {
             [1.0, 1.0]
         ];
 
+        let null_instance = Stipple::new().with_scale([0.0, 0.0]).into();
+        let null_instances: Vec<stipple::VertexInstance> = std::iter::repeat(null_instance)
+            .take(INSTANCE_CHUNK_SIZE).collect();
+
         let stipple_quad: Vec<stipple::Vertex> = QUAD.iter()
             .copied()
             .map(stipple::Vertex::new)
             .collect();
 
+        let mut tess: Tess = TessBuilder::new(&mut self.context)
+            .add_vertices(&stipple_quad)
+            .add_instances(null_instances)
+            .set_mode(Mode::TriangleStrip)
+            .build()
+            .unwrap();
+
         let aspect = target_buffer.width() as f32 / target_buffer.height() as f32;
-        self.context.pipeline_builder().pipeline(&target_buffer, [0.0, 0.0, 0.0, 0.0], |pipeline, shd_gate| {
+        self.context.pipeline_builder().pipeline(&target_buffer, [0.0, 0.0, 0.0, 0.0], |pipeline, mut shd_gate| {
             for layer in layers {
                 for stipples in layer.stipples() {
-                    let instances: Vec<stipple::VertexInstance> = stipples.instances()
+                    let mut instances: Vec<stipple::VertexInstance> = stipples.instances()
                         .map(|stipple| stipple.into())
                         .collect();
-
-                    let tess: Tess = TessBuilder::new(&mut self.context)
-                        .add_vertices(&stipple_quad)
-                        .add_instances(instances.as_slice())
-                        .set_mode(Mode::TriangleStrip)
-                        .build()
-                        .unwrap();
 
                     let bound_texture = pipeline.bind_texture(&stipples.texture.texture);
                     let bound_colormap = pipeline.bind_texture(&layer.colormap.texture);
 
-                    shd_gate.shade(&stipple_program, |iface, rdr_gate| {
+                    shd_gate.shade(&stipple_program, |iface, mut rdr_gate| {
                         let render_state = RenderState::default()
                             .set_blending((Additive, One, SrcAlphaComplement))
                             .set_depth_test(DepthTest::Off);
 
-                        rdr_gate.render(render_state, |tess_gate| {
+                        rdr_gate.render(render_state, |mut tess_gate| {
                             if instances.len() > 0 {
                                 iface.aspect_ratio.update(aspect);
                                 iface.texture.update(&bound_texture);
                                 iface.colormap.update(&bound_colormap);
                                 iface.discard_threshold.update(0.0f32);
 
-                                tess_gate.render(&mut self.context, &tess);
+                                for chunk in instances.chunks_mut(INSTANCE_CHUNK_SIZE) {
+                                    tess.as_inst_slice_mut()
+                                        .expect("Must be able to index instances")
+                                        [0..chunk.len()]
+                                        .swap_with_slice(chunk);
+
+                                    if chunk.len() == INSTANCE_CHUNK_SIZE {
+                                        tess_gate.render(&tess);
+                                    } else {
+                                        let slice = TessSlice::inst_whole(&tess, chunk.len());
+                                        tess_gate.render(slice);
+                                    }
+                                }
                             }
                         });
                     });

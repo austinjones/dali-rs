@@ -1,13 +1,16 @@
-use luminance_derive::{Semantics, Vertex, UniformInterface};
+use std::borrow::Borrow;
+
+use luminance::pipeline::BoundTexture;
+use luminance::pixel::Floating;
+use luminance::shader::program::{Program, Uniform};
+use luminance::texture::{Dim2, Flat};
+use luminance_derive::{Semantics, UniformInterface, Vertex};
 
 use crate::stipple::Stipple;
-use luminance::pipeline::BoundTexture;
-use luminance::shader::program::{Uniform, Program};
-use luminance::texture::{Flat, Dim2};
-use luminance::pixel::Floating;
 
 const STIPPLE_VS: &'static str = include_str!("../../shaders/stipple-vs.glsl");
 const STIPPLE_FS: &'static str = include_str!("../../shaders/stipple-fs.glsl");
+
 pub fn compile() -> Program<StippleSemantics, (), StippleInterface> {
     // TODO: figure out how to deal with warnings.  panic?
     let (stipple_program, _warnings) =
@@ -38,9 +41,9 @@ pub enum StippleSemantics {
     Position,
 
     #[sem(
-        name = "translation",
-        repr = "[f32; 2]",
-        wrapper = "VertexInstanceTranslation"
+    name = "translation",
+    repr = "[f32; 2]",
+    wrapper = "VertexInstanceTranslation"
     )]
     InstanceTranslation,
 
@@ -49,9 +52,9 @@ pub enum StippleSemantics {
     InstanceScale,
 
     #[sem(
-        name = "colormap_scale",
-        repr = "[f32; 2]",
-        wrapper = "VertexInstanceColormapScale"
+    name = "colormap_scale",
+    repr = "[f32; 2]",
+    wrapper = "VertexInstanceColormapScale"
     )]
     InstanceColormapScale,
 
@@ -88,8 +91,9 @@ pub struct VertexInstance {
     pub gamma: VertexInstanceGamma,
 }
 
-impl From<&Stipple> for VertexInstance {
-    fn from(stipple: &Stipple) -> Self {
+impl<T: Borrow<Stipple>> From<T> for VertexInstance {
+    fn from(stipple: T) -> Self {
+        let stipple = stipple.borrow();
         VertexInstance {
             translation: VertexInstanceTranslation::new(stipple.translation),
             scale: VertexInstanceScale::new(stipple.scale),
