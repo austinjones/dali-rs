@@ -6,7 +6,7 @@ use luminance_glfw::Surface;
 
 use semantics::*;
 
-use crate::texture::semantics::TextureRendererInterface;
+use crate::texture::semantics::{TextureRendererInterface, Vertex};
 
 pub struct TextureHandle {
     pub texture: Texture<Flat, Dim2, R32F>,
@@ -78,20 +78,19 @@ pub mod renderers {
 
     impl TextureRenderer for FragmentShaderRenderer {
         fn compile(&self) -> Program<(), (), TextureRendererInterface> {
-            let (gen_program, warnings) =
-                Program::<(), (), TextureRendererInterface>::from_strings(
-                    None,
-                    GEN_VS,
-                    None,
-                    self.fragment_shader.as_str(),
-                )
-                    .expect("merge program creation");
+            let gen_program = Program::<(), (), TextureRendererInterface>::from_strings(
+                None,
+                GEN_VS,
+                None,
+                self.fragment_shader.as_str(),
+            )
+            .expect("merge program creation");
 
-            for warning in warnings.iter() {
+            for warning in &gen_program.warnings {
                 eprintln!("Warning: {}", warning);
             }
 
-            gen_program
+            gen_program.ignore_warnings()
         }
 
         fn texture_size(&self) -> [u32; 2] {

@@ -1,9 +1,15 @@
-use luminance_glfw::{GlfwSurface, WindowDim, WindowOpt};
 use luminance_glfw::Surface;
+use luminance_glfw::{GlfwSurface, WindowDim, WindowOpt};
 
+pub use colormap::ColormapHandle;
+pub use render::gate_canvas::CanvasGate;
+pub use render::gate_layer::LayerGate;
+pub use render::gate_stipple::StippleGate;
 pub use render::pipeline::DaliPipeline;
+pub use render::pipeline::PreviewAction;
 pub use stipple::Stipple;
 pub use texture::renderers as texture_renderers;
+pub use texture::TextureHandle;
 pub use texture::TextureRenderer;
 
 mod colormap;
@@ -11,6 +17,7 @@ mod render;
 mod stipple;
 mod texture;
 
+pub type DaliPipelineGlfw = DaliPipeline<GlfwSurface>;
 /// Wraps a GlfwSurface, and initializes the Dali renderer
 /// Use .pipeline() to start rendering
 pub struct DaliContext {}
@@ -30,7 +37,6 @@ impl DaliContext {
         DaliPipeline::new(surface)
     }
 }
-
 
 #[cfg(test)]
 mod tests {

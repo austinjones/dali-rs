@@ -19,9 +19,9 @@ exclude = [
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-luminance = "0.35"
-luminance-derive = "0.3"
-luminance-glfw = "0.9"
+luminance = "0.37.1"
+luminance-derive = "0.5"
+luminance-glfw = "0.11"
 image = "0.22.1"
 
 [dev-dependencies]

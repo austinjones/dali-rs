@@ -13,12 +13,12 @@ const STIPPLE_FS: &'static str = include_str!("../../shaders/stipple-fs.glsl");
 
 pub fn compile() -> Program<StippleSemantics, (), StippleInterface> {
     // TODO: figure out how to deal with warnings.  panic?
-    let (stipple_program, _warnings) =
-        Program::<StippleSemantics, (), StippleInterface>::from_strings(
-            None, STIPPLE_VS, None, STIPPLE_FS,
-        ).expect("program creation");
+    let stipple_program = Program::<StippleSemantics, (), StippleInterface>::from_strings(
+        None, STIPPLE_VS, None, STIPPLE_FS,
+    )
+    .expect("program creation");
 
-    stipple_program
+    stipple_program.ignore_warnings()
 }
 
 #[derive(UniformInterface)]
@@ -41,9 +41,9 @@ pub enum StippleSemantics {
     Position,
 
     #[sem(
-    name = "translation",
-    repr = "[f32; 2]",
-    wrapper = "VertexInstanceTranslation"
+        name = "translation",
+        repr = "[f32; 2]",
+        wrapper = "VertexInstanceTranslation"
     )]
     InstanceTranslation,
 
@@ -52,9 +52,9 @@ pub enum StippleSemantics {
     InstanceScale,
 
     #[sem(
-    name = "colormap_scale",
-    repr = "[f32; 2]",
-    wrapper = "VertexInstanceColormapScale"
+        name = "colormap_scale",
+        repr = "[f32; 2]",
+        wrapper = "VertexInstanceColormapScale"
     )]
     InstanceColormapScale,
 
@@ -73,9 +73,9 @@ pub struct Vertex {
 }
 
 impl Vertex {
-    pub fn new(position: [f32; 2]) -> Vertex {
+    pub fn new_with_position(position: [f32; 2]) -> Vertex {
         Vertex {
-            position: VertexPosition::new(position)
+            position: VertexPosition::new(position),
         }
     }
 }

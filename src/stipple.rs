@@ -50,7 +50,7 @@ impl Default for Stipple {
             scale: [1.0, 1.0],
             colormap_scale: [1.0, 1.0],
             rotation: 0.0,
-            gamma: 1.0
+            gamma: 1.0,
         }
     }
 }

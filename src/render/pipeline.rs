@@ -2,12 +2,12 @@ use image::Rgba;
 use luminance::blending::Equation::Additive;
 use luminance::blending::Factor::{One, SrcAlphaComplement};
 use luminance::context::GraphicsContext;
-use luminance::depth_test::DepthTest;
+use luminance::depth_test::DepthComparison;
 use luminance::framebuffer::{ColorSlot, Framebuffer};
 use luminance::pixel::{R32F, RGBA32F};
 use luminance::render_state::RenderState;
 use luminance::tess::{Mode, Tess, TessBuilder, TessSlice};
-use luminance::texture::{Dim2, Flat, GenMipmaps, MagFilter, MinFilter, Sampler, Texture};
+use luminance::texture::{Dim2, Flat, GenMipmaps, MagFilter, MinFilter, Sampler, Texture, Wrap};
 use luminance_glfw::{Action, GlfwSurface, Key, Surface, WindowEvent};
 
 use crate::colormap::ColormapHandle;
@@ -15,19 +15,27 @@ use crate::render::gate_canvas::CanvasGate;
 use crate::render::gate_layer::LayerGate;
 use crate::render::semantics::stipple;
 use crate::texture::TextureHandle;
-use crate::{TextureRenderer, Stipple};
+use crate::{Stipple, TextureRenderer};
+use std::collections::HashMap;
+
+pub enum PreviewAction {
+    Escape,
+    Rating(u32),
+}
 
 /// Launches and executes end-to-end Dali renders.
 /// `preview_canvas` allows live previews, and
 /// `render_canvas` returns image-rs buffers.
 pub struct DaliPipeline<C> {
-    context: C
+    context: C,
+    image_buffers: HashMap<[u32; 2], Framebuffer<Flat, Dim2, RGBA32F, ()>>,
 }
 
 impl DaliPipeline<GlfwSurface> {
     pub(crate) fn new(context: GlfwSurface) -> DaliPipeline<GlfwSurface> {
         DaliPipeline {
-            context
+            context,
+            image_buffers: HashMap::new(),
         }
     }
 
@@ -37,13 +45,15 @@ impl DaliPipeline<GlfwSurface> {
         Sampler {
             min_filter: MinFilter::LinearMipmapLinear,
             mag_filter: MagFilter::Linear,
+            wrap_s: Wrap::MirroredRepeat,
+            wrap_t: Wrap::MirroredRepeat,
             ..Sampler::default()
         }
     }
 
     pub fn colormap<F>(&mut self, size: [u32; 2], lambda: F) -> ColormapHandle
-        where
-            F: Fn(f32, f32) -> [f32; 4],
+    where
+        F: Fn(f32, f32) -> [f32; 4],
     {
         let buffer_size = (size[0] * size[1]) as usize;
         let mut buffer = Vec::with_capacity(buffer_size * 4);
@@ -61,13 +71,9 @@ impl DaliPipeline<GlfwSurface> {
         }
 
         // TODO: look at samplers.
-        let texture: Texture<Flat, Dim2, RGBA32F> = Texture::new(
-            &mut self.context,
-            size,
-            0,
-            &Self::colormap_sampler(),
-        )
-            .expect("Failed to create colormap texture");
+        let texture: Texture<Flat, Dim2, RGBA32F> =
+            Texture::new(&mut self.context, size, 0, Self::colormap_sampler())
+                .expect("Failed to create colormap texture");
 
         texture
             .upload_raw(GenMipmaps::No, buffer.as_slice())
@@ -84,9 +90,9 @@ impl DaliPipeline<GlfwSurface> {
             &mut self.context,
             [dims.0, dims.1],
             0,
-            &Self::colormap_sampler(),
+            Self::colormap_sampler(),
         )
-            .expect("Should have generated texture");
+        .expect("Should have generated texture");
 
         let vec = image.into_raw();
         let vec: Vec<f32> = vec.into_iter().map(|e| (e as f32) / 255.0).collect();
@@ -115,9 +121,9 @@ impl DaliPipeline<GlfwSurface> {
             &mut self.context,
             [dims.0, dims.1],
             mipmaps,
-            &Self::texture_sampler(),
+            Self::texture_sampler(),
         )
-            .expect("Should have generated texture");
+        .expect("Should have generated texture");
 
         let vec = image.into_raw();
         let vec: Vec<f32> = vec.into_iter().map(|e| (e as f32) / 255.0).collect();
@@ -133,12 +139,9 @@ impl DaliPipeline<GlfwSurface> {
         // allocate framebuffer
 
         let program = texture_renderer.compile();
-        let buffer: Framebuffer<Flat, Dim2, R32F, ()> = Framebuffer::new(
-            &mut self.context,
-            texture_renderer.texture_size(),
-            0,
-        )
-            .expect("Should have framebuffer");
+        let buffer: Framebuffer<Flat, Dim2, R32F, ()> =
+            Framebuffer::new(&mut self.context, texture_renderer.texture_size(), 0)
+                .expect("Should have framebuffer");
 
         let tess = texture_renderer
             .tesselate(&mut self.context)
@@ -160,9 +163,9 @@ impl DaliPipeline<GlfwSurface> {
             &mut self.context,
             texture_renderer.texture_size(),
             texture_renderer.mipmaps(),
-            &Self::texture_sampler(),
+            Self::texture_sampler(),
         )
-            .expect("Should have generated texture");
+        .expect("Should have generated texture");
 
         let texels: Vec<f32> = buffer.color_slot().get_raw_texels();
         texture
@@ -172,25 +175,57 @@ impl DaliPipeline<GlfwSurface> {
         TextureHandle { texture }
     }
 
-
     /// Prepares an interactive window, renders, and shows the result
-    pub fn preview_canvas<'a, F>(&'a mut self, callback: F)
-        where F: FnOnce(&mut CanvasGate<'a>)
+    pub fn preview_canvas<'a, F>(&'a mut self, callback: F) -> PreviewAction
+    where
+        F: FnOnce(&mut CanvasGate<'a>),
     {
         let mut back_buffer = self.context.back_buffer().expect("Should have backbuffer");
 
         let mut canvas_gate = CanvasGate::new();
         callback(&mut canvas_gate);
 
-        self.draw(canvas_gate.layers(), &mut back_buffer);
+        Self::draw(&mut self.context, canvas_gate.layers(), &mut back_buffer);
 
         self.context.swap_buffers();
 
-        'app: loop {
+        loop {
             // for all the events on the surface
             for event in self.context.poll_events() {
                 match event {
-                    WindowEvent::Close | WindowEvent::Key(Key::Escape, _, Action::Release, _) => break 'app,
+                    WindowEvent::Close | WindowEvent::Key(Key::Escape, _, Action::Release, _) => {
+                        return PreviewAction::Escape
+                    }
+                    WindowEvent::Key(Key::Num1, _, Action::Release, _) => {
+                        return PreviewAction::Rating(1)
+                    }
+                    WindowEvent::Key(Key::Num2, _, Action::Release, _) => {
+                        return PreviewAction::Rating(2)
+                    }
+                    WindowEvent::Key(Key::Num3, _, Action::Release, _) => {
+                        return PreviewAction::Rating(3)
+                    }
+                    WindowEvent::Key(Key::Num4, _, Action::Release, _) => {
+                        return PreviewAction::Rating(4)
+                    }
+                    WindowEvent::Key(Key::Num5, _, Action::Release, _) => {
+                        return PreviewAction::Rating(5)
+                    }
+                    WindowEvent::Key(Key::Num6, _, Action::Release, _) => {
+                        return PreviewAction::Rating(6)
+                    }
+                    WindowEvent::Key(Key::Num7, _, Action::Release, _) => {
+                        return PreviewAction::Rating(7)
+                    }
+                    WindowEvent::Key(Key::Num8, _, Action::Release, _) => {
+                        return PreviewAction::Rating(8)
+                    }
+                    WindowEvent::Key(Key::Num9, _, Action::Release, _) => {
+                        return PreviewAction::Rating(9)
+                    }
+                    WindowEvent::Key(Key::Num0, _, Action::Release, _) => {
+                        return PreviewAction::Rating(10)
+                    }
 
                     WindowEvent::FramebufferSize(_width, _height) => {}
 
@@ -201,22 +236,32 @@ impl DaliPipeline<GlfwSurface> {
     }
 
     /// Renders to an offscreen framebuffer, and returns the result as a DynamicImage
-    /// TODO: high resolution rendering
-    /// TODO: convert raw texels to Image DynamicImage
     /// TODO: add feature flag for image-rs dependency
-    pub fn render_canvas<'a, F>(&'a mut self, size: [u32; 2], callback: F) -> image::ImageBuffer<Rgba<u8>, Vec<u8>>
-        where
-            F: FnOnce(&mut CanvasGate<'a>),
+    pub fn render_canvas<'a, F>(
+        &'a mut self,
+        size: [u32; 2],
+        callback: F,
+    ) -> image::ImageBuffer<Rgba<u8>, Vec<u8>>
+    where
+        F: FnOnce(&mut CanvasGate<'a>),
     {
-        let mut buffer: Framebuffer<Flat, Dim2, RGBA32F, ()> =
-            Framebuffer::new(&mut self.context, size, 0).unwrap();
+        let buffers = &mut self.image_buffers;
+        let mut buffer = match buffers.get_mut(&size) {
+            Some(t) => t,
+            None => {
+                let buffer = Framebuffer::new(&mut self.context, size, 0).unwrap();
+                self.image_buffers.insert(size.clone(), buffer);
+                self.image_buffers.get_mut(&size).unwrap()
+            }
+        };
 
         let mut canvas_gate = CanvasGate::new();
         callback(&mut canvas_gate);
 
-        self.draw(canvas_gate.layers(), &mut buffer);
+        Self::draw(&mut self.context, canvas_gate.layers(), buffer);
 
         let mut raw_texels: Vec<f32> = buffer.color_slot().get_raw_texels();
+        //        dbg!(&raw_texels);
         // we need to undo the premultiplied alpha
         // we *could* divide the color channels by the alpha channel, but the image crate does not
         // properly handle this if saving to JPEG (which has no alpha support)
@@ -233,27 +278,28 @@ impl DaliPipeline<GlfwSurface> {
         image::imageops::flip_vertical(&buffer)
     }
 
-    fn draw<'i, 'a: 'i, CS: ColorSlot<Flat, Dim2>, I: Iterator<Item=&'i LayerGate<'a>>>(&mut self, layers: I, target_buffer: &mut Framebuffer<Flat, Dim2, CS, ()>) {
+    fn draw<'i, 'a: 'i, CS: ColorSlot<Flat, Dim2>, I: Iterator<Item = &'i LayerGate<'a>>>(
+        context: &mut GlfwSurface,
+        layers: I,
+        target_buffer: &mut Framebuffer<Flat, Dim2, CS, ()>,
+    ) {
         let stipple_program = crate::render::semantics::stipple::compile();
 
         const INSTANCE_CHUNK_SIZE: usize = 512;
-        const QUAD: [[f32; 2]; 4] = [
-            [-1.0, -1.0],
-            [1.0, -1.0],
-            [-1.0, 1.0],
-            [1.0, 1.0]
-        ];
+        const QUAD: [[f32; 2]; 4] = [[-1.0, -1.0], [1.0, -1.0], [-1.0, 1.0], [1.0, 1.0]];
 
         let null_instance = Stipple::new().with_scale([0.0, 0.0]).into();
         let null_instances: Vec<stipple::VertexInstance> = std::iter::repeat(null_instance)
-            .take(INSTANCE_CHUNK_SIZE).collect();
-
-        let stipple_quad: Vec<stipple::Vertex> = QUAD.iter()
-            .copied()
-            .map(stipple::Vertex::new)
+            .take(INSTANCE_CHUNK_SIZE)
             .collect();
 
-        let mut tess: Tess = TessBuilder::new(&mut self.context)
+        let stipple_quad: Vec<stipple::Vertex> = QUAD
+            .iter()
+            .copied()
+            .map(stipple::Vertex::new_with_position)
+            .collect();
+
+        let mut tess: Tess = TessBuilder::new(context)
             .add_vertices(&stipple_quad)
             .add_instances(null_instances)
             .set_mode(Mode::TriangleStrip)
@@ -261,50 +307,49 @@ impl DaliPipeline<GlfwSurface> {
             .unwrap();
 
         let aspect = target_buffer.width() as f32 / target_buffer.height() as f32;
-        self.context.pipeline_builder().pipeline(&target_buffer, [0.0, 0.0, 0.0, 0.0], |pipeline, mut shd_gate| {
-            for layer in layers {
-                for stipples in layer.stipples() {
-                    let mut instances: Vec<stipple::VertexInstance> = stipples.instances()
-                        .map(|stipple| stipple.into())
-                        .collect();
+        context.pipeline_builder().pipeline(
+            &target_buffer,
+            [1.0, 1.0, 1.0, 0.0],
+            |pipeline, mut shd_gate| {
+                for layer in layers {
+                    for stipples in layer.stipples() {
+                        let mut instances: Vec<stipple::VertexInstance> =
+                            stipples.instances().map(|stipple| stipple.into()).collect();
 
-                    let bound_texture = pipeline.bind_texture(&stipples.texture.texture);
-                    let bound_colormap = pipeline.bind_texture(&layer.colormap.texture);
+                        let bound_texture = pipeline.bind_texture(&stipples.texture.texture);
+                        let bound_colormap = pipeline.bind_texture(&layer.colormap.texture);
 
-                    shd_gate.shade(&stipple_program, |iface, mut rdr_gate| {
-                        let render_state = RenderState::default()
-                            .set_blending((Additive, One, SrcAlphaComplement))
-                            .set_depth_test(DepthTest::Off);
+                        shd_gate.shade(&stipple_program, |iface, mut rdr_gate| {
+                            let render_state = RenderState::default()
+                                .set_blending((Additive, One, SrcAlphaComplement))
+                                .set_depth_test(DepthComparison::Always);
 
-                        rdr_gate.render(render_state, |mut tess_gate| {
-                            if instances.len() > 0 {
-                                iface.aspect_ratio.update(aspect);
-                                iface.texture.update(&bound_texture);
-                                iface.colormap.update(&bound_colormap);
-                                iface.discard_threshold.update(0.0f32);
+                            rdr_gate.render(render_state, |mut tess_gate| {
+                                if instances.len() > 0 {
+                                    iface.aspect_ratio.update(aspect);
+                                    iface.texture.update(&bound_texture);
+                                    iface.colormap.update(&bound_colormap);
+                                    iface.discard_threshold.update(0.0f32);
 
-                                for chunk in instances.chunks_mut(INSTANCE_CHUNK_SIZE) {
-                                    tess.as_inst_slice_mut()
-                                        .expect("Must be able to index instances")
-                                        [0..chunk.len()]
-                                        .swap_with_slice(chunk);
+                                    for chunk in instances.chunks_mut(INSTANCE_CHUNK_SIZE) {
+                                        tess.as_inst_slice_mut()
+                                            .expect("Must be able to index instances")
+                                            [0..chunk.len()]
+                                            .swap_with_slice(chunk);
 
-                                    if chunk.len() == INSTANCE_CHUNK_SIZE {
-                                        tess_gate.render(&tess);
-                                    } else {
-                                        let slice = TessSlice::inst_whole(&tess, chunk.len());
-                                        tess_gate.render(slice);
+                                        if chunk.len() == INSTANCE_CHUNK_SIZE {
+                                            tess_gate.render(&tess);
+                                        } else {
+                                            let slice = TessSlice::inst_whole(&tess, chunk.len());
+                                            tess_gate.render(slice);
+                                        }
                                     }
                                 }
-                            }
+                            });
                         });
-                    });
+                    }
                 }
-            }
-        });
+            },
+        );
     }
 }
-
-
-
-

@@ -3,7 +3,6 @@ uniform sampler2D source_colormap;
 uniform float discard_threshold;
 
 in float v_gamma;
-in vec3 v_color;
 in vec2 v_texcoords;
 in vec2 v_colorcoords;
 
