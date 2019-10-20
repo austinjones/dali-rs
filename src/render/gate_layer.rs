@@ -1,6 +1,7 @@
 use crate::colormap::ColormapHandle;
 use crate::render::gate_stipple::StippleGate;
 use crate::texture::TextureHandle;
+use crate::MaskHandle;
 
 /// Handles the bulk of the rendering and GLSL interaction
 /// CanvasGate binds a framebuffer, and then initializes the LayerGate
@@ -11,25 +12,36 @@ pub struct LayerGate<'a> {
 }
 
 impl<'a> LayerGate<'a> {
-    pub fn new(
-        colormap: &'a ColormapHandle
-    ) -> LayerGate<'a> {
+    pub fn new(colormap: &'a ColormapHandle) -> LayerGate<'a> {
         LayerGate {
             colormap,
             stipples: Vec::new(),
         }
     }
 
-    pub fn stipple<F>(&mut self, texture: &'a TextureHandle, callback: F)
-        where
-            F: FnOnce(&mut StippleGate),
+    pub fn stipple<F>(&mut self, mask: &'a MaskHandle, callback: F)
+    where
+        F: FnOnce(&mut StippleGate),
     {
-        let mut stipple = StippleGate::new(texture);
+        let mut stipple = StippleGate::new(mask);
         callback(&mut stipple);
         self.stipples.push(stipple);
     }
 
-    pub(crate) fn stipples(&self) -> impl Iterator<Item=&StippleGate<'a>> {
+    pub fn stipple_with_texture<F>(
+        &mut self,
+        mask: &'a MaskHandle,
+        texture: &'a TextureHandle,
+        callback: F,
+    ) where
+        F: FnOnce(&mut StippleGate),
+    {
+        let mut stipple = StippleGate::new_with_texture(mask, texture);
+        callback(&mut stipple);
+        self.stipples.push(stipple);
+    }
+
+    pub(crate) fn stipples(&self) -> impl Iterator<Item = &StippleGate<'a>> {
         self.stipples.iter()
     }
 }

@@ -10,6 +10,7 @@ use crate::stipple::Stipple;
 
 const STIPPLE_VS: &'static str = include_str!("../../shaders/stipple-vs.glsl");
 const STIPPLE_FS: &'static str = include_str!("../../shaders/stipple-fs.glsl");
+const STIPPLE_TEXTURE_FS: &'static str = include_str!("../../shaders/stipple-texture-fs.glsl");
 
 pub fn compile() -> Program<StippleSemantics, (), StippleInterface> {
     // TODO: figure out how to deal with warnings.  panic?
@@ -21,9 +22,24 @@ pub fn compile() -> Program<StippleSemantics, (), StippleInterface> {
     stipple_program.ignore_warnings()
 }
 
+pub fn compile_with_texture() -> Program<StippleSemantics, (), StippleInterface> {
+    // TODO: figure out how to deal with warnings.  panic?
+    let stipple_program = Program::<StippleSemantics, (), StippleInterface>::from_strings(
+        None,
+        STIPPLE_VS,
+        None,
+        STIPPLE_TEXTURE_FS,
+    )
+    .expect("program creation");
+
+    stipple_program.ignore_warnings()
+}
+
 #[derive(UniformInterface)]
 pub struct StippleInterface {
     // we only need the source texture (from the framebuffer) to fetch from
+    #[uniform(unbound, name = "source_mask")]
+    pub mask: Uniform<&'static BoundTexture<'static, Flat, Dim2, Floating>>,
     #[uniform(unbound, name = "source_texture")]
     pub texture: Uniform<&'static BoundTexture<'static, Flat, Dim2, Floating>>,
     #[uniform(unbound, name = "source_colormap")]
@@ -63,6 +79,13 @@ pub enum StippleSemantics {
 
     #[sem(name = "gamma", repr = "f32", wrapper = "VertexInstanceGamma")]
     InstanceGamma,
+
+    #[sem(
+        name = "texture_rotation",
+        repr = "f32",
+        wrapper = "VertexInstanceTextureRotation"
+    )]
+    InstanceTextureRotation,
 }
 
 #[repr(C)]
@@ -88,6 +111,7 @@ pub struct VertexInstance {
     pub scale: VertexInstanceScale,
     pub colormap_scale: VertexInstanceColormapScale,
     pub rotation: VertexInstanceRotation,
+    pub texture_rotation: VertexInstanceTextureRotation,
     pub gamma: VertexInstanceGamma,
 }
 
@@ -99,6 +123,7 @@ impl<T: Borrow<Stipple>> From<T> for VertexInstance {
             scale: VertexInstanceScale::new(stipple.scale),
             colormap_scale: VertexInstanceColormapScale::new(stipple.colormap_scale),
             rotation: VertexInstanceRotation::new(stipple.rotation),
+            texture_rotation: VertexInstanceTextureRotation::new(stipple.texture_rotation),
             gamma: VertexInstanceGamma::new(stipple.gamma),
         }
     }

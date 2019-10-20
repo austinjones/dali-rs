@@ -9,6 +9,7 @@ pub struct Stipple {
     pub(crate) scale: [f32; 2],
     pub(crate) colormap_scale: [f32; 2],
     pub(crate) rotation: f32,
+    pub(crate) texture_rotation: f32,
     pub(crate) gamma: f32,
 }
 
@@ -37,6 +38,11 @@ impl Stipple {
         self
     }
 
+    pub fn with_texture_rotation(mut self, texture_rotation: f32) -> Self {
+        self.texture_rotation = texture_rotation;
+        self
+    }
+
     pub fn with_gamma(mut self, gamma: f32) -> Self {
         self.gamma = gamma;
         self
@@ -50,6 +56,7 @@ impl Default for Stipple {
             scale: [1.0, 1.0],
             colormap_scale: [1.0, 1.0],
             rotation: 0.0,
+            texture_rotation: 0.0,
             gamma: 1.0,
         }
     }

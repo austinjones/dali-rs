@@ -8,8 +8,6 @@ use std::path::Path;
 use image::{DynamicImage, ImageOutputFormat};
 use rand::{Rng, thread_rng};
 
-
-
 use dali::{DaliContext, Stipple};
 
 fn rand_translation() -> [f32; 2] {
@@ -29,10 +27,10 @@ pub fn main() {
     let mut pipeline = runtime.pipeline((500, 500));
 
     let image = image::open(Path::new("examples/tex1.jpg")).expect("1i");
-    let texture1 = pipeline.texture_from_image(image.to_luma(), 4);
+    let mask1 = pipeline.mask_from_image(image.to_luma(), 4);
 
     let image = image::open(Path::new("examples/tex2.jpg")).expect("2i");
-    let texture2 = pipeline.texture_from_image(image.to_luma(), 4);
+    let mask2 = pipeline.mask_from_image(image.to_luma(), 4);
 
     let image = image::open(Path::new("examples/colormap.jpg")).expect("colormap");
     let color_map = pipeline.colormap_from_image(image.to_rgba());
@@ -43,7 +41,7 @@ pub fn main() {
         canvas_gate.layer(&color_map, |layer_gate| {
             for _ in 0..20 {
                 for _ in 0..3 {
-                    layer_gate.stipple(&texture1, |stipple_gate| {
+                    layer_gate.stipple(&mask1, |stipple_gate| {
                         let stipple = Stipple::default()
                             .with_scale([0.6, 0.6])
                             .with_colormap_scale([0.95, 0.98])
@@ -54,7 +52,7 @@ pub fn main() {
                 }
 
                 for _ in 0..2 {
-                    layer_gate.stipple(&texture2, |stipple_gate| {
+                    layer_gate.stipple(&mask2, |stipple_gate| {
                         let stipple = Stipple::default()
                             .with_scale([0.3, 0.3])
                             .with_colormap_scale([0.2, 0.2])

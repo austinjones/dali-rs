@@ -15,7 +15,7 @@ use crate::render::gate_canvas::CanvasGate;
 use crate::render::gate_layer::LayerGate;
 use crate::render::semantics::stipple;
 use crate::texture::TextureHandle;
-use crate::{Stipple, TextureRenderer};
+use crate::{MaskHandle, Stipple, TextureRenderer};
 use std::collections::HashMap;
 
 pub enum PreviewAction {
@@ -112,6 +112,27 @@ impl DaliPipeline<GlfwSurface> {
             mag_filter: MagFilter::Linear,
             ..Sampler::default()
         }
+    }
+
+    pub fn mask_from_image(&mut self, image: image::GrayImage, mipmaps: usize) -> MaskHandle {
+        let dims = image.dimensions();
+        // TODO: look at samplers.
+        let texture: Texture<Flat, Dim2, R32F> = Texture::new(
+            &mut self.context,
+            [dims.0, dims.1],
+            mipmaps,
+            Self::texture_sampler(),
+        )
+        .expect("Should have generated texture");
+
+        let vec = image.into_raw();
+        let vec: Vec<f32> = vec.into_iter().map(|e| (e as f32) / 255.0).collect();
+
+        texture
+            .upload_raw(GenMipmaps::Yes, vec.as_slice())
+            .expect("Should have uploaded texture");
+
+        MaskHandle { mask: texture }
     }
 
     pub fn texture_from_image(&mut self, image: image::GrayImage, mipmaps: usize) -> TextureHandle {
@@ -246,7 +267,7 @@ impl DaliPipeline<GlfwSurface> {
         F: FnOnce(&mut CanvasGate<'a>),
     {
         let buffers = &mut self.image_buffers;
-        let mut buffer = match buffers.get_mut(&size) {
+        let buffer = match buffers.get_mut(&size) {
             Some(t) => t,
             None => {
                 let buffer = Framebuffer::new(&mut self.context, size, 0).unwrap();
@@ -284,6 +305,7 @@ impl DaliPipeline<GlfwSurface> {
         target_buffer: &mut Framebuffer<Flat, Dim2, CS, ()>,
     ) {
         let stipple_program = crate::render::semantics::stipple::compile();
+        let stipple_texture_program = crate::render::semantics::stipple::compile_with_texture();
 
         const INSTANCE_CHUNK_SIZE: usize = 512;
         const QUAD: [[f32; 2]; 4] = [[-1.0, -1.0], [1.0, -1.0], [-1.0, 1.0], [1.0, 1.0]];
@@ -316,10 +338,18 @@ impl DaliPipeline<GlfwSurface> {
                         let mut instances: Vec<stipple::VertexInstance> =
                             stipples.instances().map(|stipple| stipple.into()).collect();
 
-                        let bound_texture = pipeline.bind_texture(&stipples.texture.texture);
+                        let bound_mask = pipeline.bind_texture(&stipples.mask.mask);
                         let bound_colormap = pipeline.bind_texture(&layer.colormap.texture);
+                        let bound_texture =
+                            stipples.texture.map(|e| pipeline.bind_texture(&e.texture));
 
-                        shd_gate.shade(&stipple_program, |iface, mut rdr_gate| {
+                        let program = if bound_texture.is_some() {
+                            &stipple_texture_program
+                        } else {
+                            &stipple_program
+                        };
+
+                        shd_gate.shade(program, |iface, mut rdr_gate| {
                             let render_state = RenderState::default()
                                 .set_blending((Additive, One, SrcAlphaComplement))
                                 .set_depth_test(DepthComparison::Always);
@@ -327,9 +357,13 @@ impl DaliPipeline<GlfwSurface> {
                             rdr_gate.render(render_state, |mut tess_gate| {
                                 if instances.len() > 0 {
                                     iface.aspect_ratio.update(aspect);
-                                    iface.texture.update(&bound_texture);
+                                    iface.mask.update(&bound_mask);
                                     iface.colormap.update(&bound_colormap);
                                     iface.discard_threshold.update(0.0f32);
+
+                                    if let Some(tex) = bound_texture {
+                                        iface.texture.update(&tex);
+                                    }
 
                                     for chunk in instances.chunks_mut(INSTANCE_CHUNK_SIZE) {
                                         tess.as_inst_slice_mut()

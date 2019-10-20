@@ -22,19 +22,22 @@ Colormaps are target images that each stipple uses for color sampling.  Your out
 look like the colormap.
 
 #### Stipples
-Stipples produce **texture**.  Stipples combine their greyscale alpha texture with the colormap to 
+Stipples produce **texture**.  Stipples combine their greyscale alpha mask, an optional texture, and the colormap to
 render the output image.  Multiple reference frames and scaling factors are involved, though.
 
 Stipple textures can be:
  - translated, 
  - scaled
  - rotated about their center
+ - (texture) rotated about their center
  - deformed by scaling the colormap about the stipple center
 
 Stipples use the **colormap** to sample color.  This sampling occurs in canvas coordinates, which is 
 a different reference frame than the stipple texture!  Critically, _colormap sampling can be scaled
  with reference to the center of the stipple in canvas coordinates_.  This allows a continuous 
  deformation of the colormap image - from 1.0 as a straight copy to 0.0 as a single color.
+
+Stipple textures are optional, but dynamically add contrast to the output.  The algorithm is complicated, and described in stipple-texture-fs.glsl.
  
 Intricate textures are generated from many interleaved stipples, each rendering a scaled down version of the colormap.
 

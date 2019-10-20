@@ -25,10 +25,10 @@ pub fn main() {
 
     // load the textures and colormap from disk
     let image = image::open(Path::new("examples/tex1.jpg")).expect("1i");
-    let texture1 = pipeline.texture_from_image(image.to_luma(), 4);
+    let mask1 = pipeline.mask_from_image(image.to_luma(), 4);
 
     let image = image::open(Path::new("examples/tex2.jpg")).expect("2i");
-    let texture2 = pipeline.texture_from_image(image.to_luma(), 4);
+    let mask2 = pipeline.mask_from_image(image.to_luma(), 4);
 
     let image = image::open(Path::new("examples/colormap.jpg")).expect("colormap");
     let color_map = pipeline.colormap_from_image(image.to_rgba());
@@ -37,7 +37,7 @@ pub fn main() {
         canvas_gate.layer(&color_map, |layer_gate| {
             for _ in 0..480 {
                 for _ in 0..1 {
-                    layer_gate.stipple(&texture1, |stipple_gate| {
+                    layer_gate.stipple(&mask1, |stipple_gate| {
                         let stipple = Stipple::default()
                             .with_scale([0.3, 0.3])
                             // this time let's make large strokes
@@ -50,7 +50,7 @@ pub fn main() {
                 }
 
                 for _ in 0..12 {
-                    layer_gate.stipple(&texture2, |stipple_gate| {
+                    layer_gate.stipple(&mask2, |stipple_gate| {
                         let stipple = Stipple::default()
                             .with_scale([0.05, 0.05])
                             // and some tiny ones
