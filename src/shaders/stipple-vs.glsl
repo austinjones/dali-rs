@@ -10,6 +10,7 @@ out vec2 v_maskcoords;
 out vec2 v_texcoords;
 out vec2 v_colorcoords;
 out float v_gamma;
+out float v_colormap_bias;
 
 uniform float aspect_ratio;
 
@@ -32,12 +33,11 @@ vec2 mask_position() {
 }
 
 vec2 texture_position() {
-    vec2 scaled = vec2(0.5, 0.5) + vec2(0.5, -0.5) * position;
-    vec2 rotated = rotate(scaled, texture_rotation);
+    vec2 rotated = rotate(position, texture_rotation);
     // the coordinates could be rotated outside the -1 to 1 box
     // we divide by sqrt(2) to correct for this
-    vec2 corrected = rotated / sqrt(2);
-    return corrected;
+    vec2 corrected = rotated / sqrt(2.0);
+    return vec2(0.5, 0.5) + vec2(0.5, -0.5) * corrected;
 }
 
 vec2 colormap_position() {
@@ -54,4 +54,5 @@ void main() {
     v_texcoords = texture_position();
     v_colorcoords = colormap_position();
     v_gamma = gamma;
+    v_colormap_bias = log2(2.0/(colormap_scale.x + colormap_scale.y));
 }

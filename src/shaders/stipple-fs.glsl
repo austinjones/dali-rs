@@ -3,6 +3,7 @@ uniform sampler2D source_colormap;
 uniform float discard_threshold;
 
 in float v_gamma;
+in float v_colormap_bias;
 // we accept v_texcoords as input, but don't use it in this version of the shader
 in vec2 v_texcoords;
 in vec2 v_maskcoords;
@@ -12,7 +13,7 @@ out vec4 frag;
 
 void main() {
     vec4 mask = texture(source_mask, v_maskcoords);
-    vec4 color = texture(source_colormap, v_colorcoords);
+    vec4 color = texture(source_colormap, v_colorcoords, v_colormap_bias);
 
     if (mask.r < discard_threshold) {
         discard;

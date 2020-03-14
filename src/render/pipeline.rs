@@ -114,7 +114,38 @@ impl DaliPipeline<GlfwSurface> {
         }
     }
 
+    fn to_square(mut image: image::GrayImage) -> image::GrayImage {
+        let (w, h) = image.dimensions();
+        if w == h {
+            return image;
+        }
+
+        if w > h {
+            let edge_len = (w - h) / 2;
+            println!(
+                "Resizing from {}x{} to {}x{} with bar length {}",
+                w, h, h, h, edge_len
+            );
+
+            let cropped = image::imageops::crop(&mut image, edge_len, 0, h, h);
+
+            return cropped.to_image();
+        } else {
+            let bar_len = (h - w) / 2;
+            println!(
+                "Resizing from {}x{} to {}x{} with bar length {}",
+                w, h, w, w, bar_len
+            );
+
+            let cropped = image::imageops::crop(&mut image, 0, bar_len, w, w);
+
+            return cropped.to_image();
+        }
+    }
+
     pub fn mask_from_image(&mut self, image: image::GrayImage, mipmaps: usize) -> MaskHandle {
+        let image = Self::to_square(image);
+
         let dims = image.dimensions();
         // TODO: look at samplers.
         let texture: Texture<Flat, Dim2, R32F> = Texture::new(
@@ -136,6 +167,8 @@ impl DaliPipeline<GlfwSurface> {
     }
 
     pub fn texture_from_image(&mut self, image: image::GrayImage, mipmaps: usize) -> TextureHandle {
+        let image = Self::to_square(image);
+
         let dims = image.dimensions();
         // TODO: look at samplers.
         let texture: Texture<Flat, Dim2, R32F> = Texture::new(
