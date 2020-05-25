@@ -4,6 +4,7 @@ extern crate dali;
 use std::f32::consts::PI;
 use std::fs::File;
 use std::path::Path;
+use std::fs::create_dir;
 
 use image::{DynamicImage, ImageOutputFormat};
 use rand::{Rng, thread_rng};
@@ -39,7 +40,7 @@ pub fn main() {
     // this can be pretty high.  print quality (8000x8000) renders in about a minute
     let image = pipeline.render_canvas([800, 800], |canvas_gate| {
         canvas_gate.layer(&color_map, |layer_gate| {
-            for _ in 0..20 {
+            for _ in 0..40 {
                 for _ in 0..3 {
                     layer_gate.stipple(&mask1, |stipple_gate| {
                         let stipple = Stipple::default()
@@ -69,8 +70,9 @@ pub fn main() {
     // dali renders fully opaque images, but handles transparency internally with premultiplied alpha
     // this means we can render to an opaque PNG, or JPEG (which doesn't support transparency)
     // here we use the DynamicImage::write_to method so we can control the JPEG compression level.
-    println!("Writing to out/example.jpg");
-    let mut file = File::create("out/example.jpg").expect("Could not create output file.");
+    create_dir("out");
+    println!("Writing to out/example3.jpg");
+    let mut file = File::create("out/example3.jpg").expect("Could not create output file.");
     DynamicImage::ImageRgba8(image)
         .write_to(&mut file, ImageOutputFormat::JPEG(95))
         .expect("Could not write to output file");

@@ -28,3 +28,8 @@ image = "0.22.1"
 rand = "0.7.0"
 rand_xorshift = "0.2.0"
 imageproc = "0.19.2"
+
+[[test]]
+name = "gltests"
+path = "gltests/main.rs"
+harness = false

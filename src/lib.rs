@@ -1,3 +1,12 @@
+//! Dali Renderer, is a GPU rendering library that creates high quality digital paintings.
+//! 
+//! Dali is designed to generate output for large canvas prints, which means high DPI, 
+//! high resolution output. Currently, high resolution images (8000x8000) render in ~20 seconds, 
+//! plus 40-60 seconds for JPEG encoding.
+//! 
+//! Get started with `DaliContext::new().pipeline((800, 600))`, or see
+//! the [examples](https://github.com/austinjones/dali-rs/tree/master/examples).
+
 use luminance_glfw::Surface;
 use luminance_glfw::{GlfwSurface, WindowDim, WindowOpt};
 
@@ -19,7 +28,9 @@ mod render;
 mod stipple;
 mod texture;
 
+/// A [DaliPipeline] with a GlfwSurface backend
 pub type DaliPipelineGlfw = DaliPipeline<GlfwSurface>;
+
 /// Wraps a GlfwSurface, and initializes the Dali renderer
 /// Use .pipeline() to start rendering
 pub struct DaliContext {}
@@ -42,8 +53,5 @@ impl DaliContext {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
+    // GlfwSurface must be constructed from the main thread, so DaliContext tests are in gltests/main.rs
 }

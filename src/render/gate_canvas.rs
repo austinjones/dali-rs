@@ -3,7 +3,7 @@ use std::iter::Iterator;
 use crate::colormap::ColormapHandle;
 use crate::render::gate_layer::LayerGate;
 
-/// CanvasGate represents an start-to-finish render to a Framebuffer.
+/// CanvasGate manages the Framebuffer render, binding ColorMaps, and layers via [layer]
 /// Manages high-level resources such as Color Maps, Textures, and Layers.
 pub struct CanvasGate<'a> {
     layers: Vec<LayerGate<'a>>

@@ -8,6 +8,7 @@ use semantics::*;
 
 use crate::texture::semantics::{TextureRendererInterface, Vertex};
 
+/// A handle to a Dali Texture loaded into GPU memory
 pub struct TextureHandle {
     pub texture: Texture<Flat, Dim2, R32F>,
 }

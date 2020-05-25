@@ -24,8 +24,8 @@ pub enum PreviewAction {
 }
 
 /// Launches and executes end-to-end Dali renders.
-/// `preview_canvas` allows live previews, and
-/// `render_canvas` returns image-rs buffers.
+/// [preview_canvas] allows live previews, and
+/// [render_canvas] returns image-rs buffers.
 pub struct DaliPipeline<C> {
     context: C,
     image_buffers: HashMap<[u32; 2], Framebuffer<Flat, Dim2, RGBA32F, ()>>,
@@ -315,7 +315,6 @@ impl DaliPipeline<GlfwSurface> {
         Self::draw(&mut self.context, canvas_gate.layers(), buffer);
 
         let mut raw_texels: Vec<f32> = buffer.color_slot().get_raw_texels();
-        //        dbg!(&raw_texels);
         // we need to undo the premultiplied alpha
         // we *could* divide the color channels by the alpha channel, but the image crate does not
         // properly handle this if saving to JPEG (which has no alpha support)
