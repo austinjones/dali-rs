@@ -5,7 +5,6 @@ use std::f32::consts::PI;
 
 use std::path::Path;
 
-
 use rand::Rng;
 use rand::SeedableRng;
 use rand_xorshift::XorShiftRng;
@@ -50,7 +49,7 @@ pub fn main() {
     pipeline.preview_canvas(|canvas_gate| {
         canvas_gate.layer(&color_map, |layer_gate| {
             for _ in 0..900 {
-                layer_gate.stipple_with_texture(&mask1, &texture, |stipple_gate| {
+                layer_gate.stipple_with_texture(&mask1, &mut texture, |stipple_gate| {
                     let stipple = Stipple::default()
                         .with_scale([0.175, 0.175])
                         .with_colormap_scale([1.0, 1.0])
