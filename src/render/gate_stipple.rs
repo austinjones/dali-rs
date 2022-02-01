@@ -5,7 +5,7 @@ use crate::MaskHandle;
 /// Collects Stipple instances from the user, and provides an owned vec to LayerGate when the user has finished generating instances.
 pub struct StippleGate<'t> {
     pub(crate) mask: &'t MaskHandle,
-    pub(crate) texture: Option<&'t mut TextureHandle>,
+    pub(crate) texture: Option<&'t TextureHandle>,
     stipples: Vec<Stipple>,
 }
 
@@ -18,10 +18,7 @@ impl<'t> StippleGate<'t> {
         }
     }
 
-    pub fn new_with_texture(
-        mask: &'t MaskHandle,
-        texture: &'t mut TextureHandle,
-    ) -> StippleGate<'t> {
+    pub fn new_with_texture(mask: &'t MaskHandle, texture: &'t TextureHandle) -> StippleGate<'t> {
         StippleGate {
             mask,
             texture: Some(texture),

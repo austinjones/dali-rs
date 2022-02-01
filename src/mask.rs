@@ -18,6 +18,6 @@ impl MaskHandle {
     }
 
     pub fn lock(&self) -> MutexGuard<'_, Texture<GL33, Dim2, R32F>> {
-        self.mask.lock().expect("not poisoned")
+        self.mask.lock().expect("poisoned")
     }
 }

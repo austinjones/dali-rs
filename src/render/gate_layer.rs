@@ -31,7 +31,7 @@ impl<'a> LayerGate<'a> {
     pub fn stipple_with_texture<F>(
         &mut self,
         mask: &'a MaskHandle,
-        texture: &'a mut TextureHandle,
+        texture: &'a TextureHandle,
         callback: F,
     ) where
         F: FnOnce(&mut StippleGate),

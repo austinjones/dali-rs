@@ -33,23 +33,23 @@ pub fn main() {
 
     // load the textures and colormap from disk
     let image = image::open(Path::new("examples/window.jpg")).expect("1i");
-    let mask1 = pipeline.mask_from_image(image.to_luma(), 4);
+    let mask1 = pipeline.mask_from_image(image.to_luma8(), 4);
 
     let mut image = image::open(Path::new("examples/tex3.jpg"))
         .expect("2i")
-        .to_luma();
+        .to_luma8();
     imageproc::contrast::equalize_histogram_mut(&mut image);
     let texture = pipeline.texture_from_image(image, 4);
 
     let image = image::open(Path::new("examples/colormap.jpg")).expect("colormap");
     let image = image::imageops::blur(&image, 8.0);
-    let color_map = pipeline.colormap_from_image(image);
+    let mut color_map = pipeline.colormap_from_image(image);
 
     // tell the pipeline to open a preview window
     pipeline.preview_canvas(|canvas_gate| {
-        canvas_gate.layer(&color_map, |layer_gate| {
+        canvas_gate.layer(&mut color_map, |layer_gate| {
             for _ in 0..900 {
-                layer_gate.stipple_with_texture(&mask1, &mut texture, |stipple_gate| {
+                layer_gate.stipple_with_texture(&mask1, &texture, |stipple_gate| {
                     let stipple = Stipple::default()
                         .with_scale([0.175, 0.175])
                         .with_colormap_scale([1.0, 1.0])

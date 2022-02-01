@@ -1,3 +1,5 @@
+use std::sync::{Mutex, MutexGuard};
+
 use luminance::context::GraphicsContext;
 use luminance::pixel::R32F;
 use luminance::shader::Program;
@@ -11,7 +13,19 @@ use crate::texture::semantics::{TextureRendererInterface, Vertex};
 
 /// A handle to a Dali Texture loaded into GPU memory
 pub struct TextureHandle {
-    pub texture: Texture<GL33, Dim2, R32F>,
+    texture: Mutex<Texture<GL33, Dim2, R32F>>,
+}
+
+impl TextureHandle {
+    pub fn new(texture: Texture<GL33, Dim2, R32F>) -> Self {
+        TextureHandle {
+            texture: Mutex::new(texture),
+        }
+    }
+
+    pub fn lock(&self) -> MutexGuard<'_, Texture<GL33, Dim2, R32F>> {
+        self.texture.lock().expect("poisoned")
+    }
 }
 
 /// Implements the functionality requires to fully render a mipmapped texture, that can be used as a stipple pattern

@@ -21,7 +21,9 @@ use crate::render::gate_layer::LayerGate;
 use crate::render::semantics::stipple;
 use crate::texture::TextureHandle;
 use crate::{MaskHandle, Stipple, TextureRenderer};
+
 use std::collections::HashMap;
+use std::convert::TryInto;
 
 pub enum PreviewAction {
     Escape,
@@ -74,7 +76,7 @@ impl DaliPipeline<GlfwSurface> {
                 buffer.push(color[3]);
             }
         }
-        dbg!(buffer);
+
         // TODO: look at samplers.
         let texture = unimplemented!("colormap");
         // let texture: Texture<GL33, Dim2, RGBA32F> = Texture::new(
@@ -93,19 +95,22 @@ impl DaliPipeline<GlfwSurface> {
         let dims = image.dimensions();
         let vec = image.into_raw();
         let vec: Vec<f32> = vec.into_iter().map(|e| (e as f32) / 255.0).collect();
-        dbg!(vec);
+        let texels: Vec<[f32; 4]> = vec
+            .chunks_exact(4)
+            .map(|s| s.try_into().expect("unreachable"))
+            .collect();
+
         // TODO: look at samplers.
-        let texture = unimplemented!("colormap_from_image");
-        // let texture: Texture<GL33, Dim2, RGBA32F> = Texture::new(
-        //     &mut self.surface.context,
-        //     [dims.0, dims.1],
-        //     Self::colormap_sampler(),
-        //     TexelUpload::BaseLevel {
-        //         texels: &vec,
-        //         mipmaps: 0,
-        //     },
-        // )
-        // .expect("Should have generated texture");
+        let texture: Texture<GL33, Dim2, RGBA32F> = Texture::new(
+            &mut self.surface.context,
+            [dims.0, dims.1],
+            Self::colormap_sampler(),
+            TexelUpload::BaseLevel {
+                texels: &texels,
+                mipmaps: 0,
+            },
+        )
+        .expect("Should have generated texture");
 
         ColormapHandle { texture }
     }
@@ -135,7 +140,7 @@ impl DaliPipeline<GlfwSurface> {
 
             let cropped = image::imageops::crop(&mut image, edge_len, 0, h, h);
 
-            return cropped.to_image();
+            cropped.to_image()
         } else {
             let bar_len = (h - w) / 2;
             println!(
@@ -145,7 +150,7 @@ impl DaliPipeline<GlfwSurface> {
 
             let cropped = image::imageops::crop(&mut image, 0, bar_len, w, w);
 
-            return cropped.to_image();
+            cropped.to_image()
         }
     }
 
@@ -190,7 +195,7 @@ impl DaliPipeline<GlfwSurface> {
         )
         .expect("Should have generated texture");
 
-        TextureHandle { texture }
+        TextureHandle::new(texture)
     }
 
     pub fn texture<T: TextureRenderer>(&mut self, texture_renderer: &T) -> TextureHandle {
@@ -239,7 +244,7 @@ impl DaliPipeline<GlfwSurface> {
         )
         .expect("Should have generated texture");
 
-        TextureHandle { texture }
+        TextureHandle::new(texture)
     }
 
     /// Prepares an interactive window, renders, and shows the result
@@ -407,12 +412,9 @@ impl DaliPipeline<GlfwSurface> {
                             let mut mask = stipples.mask.lock();
                             let bound_mask = pipeline.bind_texture(&mut mask);
                             let bound_colormap = pipeline.bind_texture(&mut colormap.texture);
-                            let bound_texture = stipples
-                                .texture
-                                .as_mut()
-                                .map(|e| pipeline.bind_texture(&mut e.texture));
+                            let bound_texture_lock = stipples.texture.map(|tex| tex.lock());
 
-                            let program = if bound_texture.is_some() {
+                            let program = if bound_texture_lock.is_some() {
                                 &mut stipple_texture_program
                             } else {
                                 &mut stipple_program
@@ -430,14 +432,16 @@ impl DaliPipeline<GlfwSurface> {
                                         .set_depth_test(Comparison::Always);
 
                                     rdr_gate.render(&render_state, |mut tess_gate| {
-                                        if instances.len() > 0 {
+                                        if !instances.is_empty() {
                                             piface.set(&siface.aspect_ratio, aspect);
                                             piface.set(&siface.mask, bound_mask?.binding());
                                             piface.set(&siface.colormap, bound_colormap?.binding());
                                             piface.set(&siface.discard_threshold, 0.0f32);
 
-                                            if let Some(tex) = bound_texture {
-                                                piface.set(&siface.texture, tex?.binding());
+                                            if let Some(mut tex) = bound_texture_lock {
+                                                let bound_texture = pipeline.bind_texture(&mut tex);
+                                                piface
+                                                    .set(&siface.texture, bound_texture?.binding());
                                             }
 
                                             for chunk in instances.chunks_mut(INSTANCE_CHUNK_SIZE) {
