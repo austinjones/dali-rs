@@ -3,7 +3,7 @@ extern crate dali;
 use std::f32::consts::PI;
 use std::path::Path;
 
-use rand::{Rng, thread_rng};
+use rand::{thread_rng, Rng};
 
 use dali::{DaliContext, Stipple};
 
@@ -25,16 +25,16 @@ pub fn main() {
 
     // load the textures and colormap from disk
     let image = image::open(Path::new("examples/tex1.jpg")).expect("1i");
-    let mask1 = pipeline.mask_from_image(image.to_luma(), 4);
+    let mask1 = pipeline.mask_from_image(image.to_luma8(), 4);
 
     let image = image::open(Path::new("examples/tex2.jpg")).expect("2i");
-    let mask2 = pipeline.mask_from_image(image.to_luma(), 4);
+    let mask2 = pipeline.mask_from_image(image.to_luma8(), 4);
 
     let image = image::open(Path::new("examples/colormap.jpg")).expect("colormap");
-    let color_map = pipeline.colormap_from_image(image.to_rgba());
+    let mut color_map = pipeline.colormap_from_image(image.to_rgba8());
 
     pipeline.preview_canvas(|canvas_gate| {
-        canvas_gate.layer(&color_map, |layer_gate| {
+        canvas_gate.layer(&mut color_map, |layer_gate| {
             for _ in 0..480 {
                 for _ in 0..1 {
                     layer_gate.stipple(&mask1, |stipple_gate| {

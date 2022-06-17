@@ -19,15 +19,17 @@ exclude = [
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-luminance = "0.37.1"
-luminance-derive = "0.5"
-luminance-glfw = "0.11"
-image = "0.22.1"
+glfw = "0.43"
+image = "0.23"
+luminance = "0.46"
+luminance-derive = "0.9"
+luminance-gl = "0.19"
+luminance-glfw = "0.18"
 
 [dev-dependencies]
 rand = "0.7.0"
 rand_xorshift = "0.2.0"
-imageproc = "0.19.2"
+imageproc = "0.22"
 
 [[test]]
 name = "gltests"

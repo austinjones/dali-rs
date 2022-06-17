@@ -7,12 +7,12 @@ use crate::MaskHandle;
 /// CanvasGate binds a framebuffer, and then initializes the LayerGate
 /// LayerGate renders primitives such as Stipple instances.
 pub struct LayerGate<'a> {
-    pub(crate) colormap: &'a ColormapHandle,
+    pub(crate) colormap: &'a mut ColormapHandle,
     stipples: Vec<StippleGate<'a>>,
 }
 
 impl<'a> LayerGate<'a> {
-    pub fn new(colormap: &'a ColormapHandle) -> LayerGate<'a> {
+    pub fn new(colormap: &'a mut ColormapHandle) -> LayerGate<'a> {
         LayerGate {
             colormap,
             stipples: Vec::new(),
@@ -43,5 +43,14 @@ impl<'a> LayerGate<'a> {
 
     pub(crate) fn stipples(&self) -> impl Iterator<Item = &StippleGate<'a>> {
         self.stipples.iter()
+    }
+
+    pub(crate) fn split_mut(
+        &mut self,
+    ) -> (
+        &mut &'a mut ColormapHandle,
+        impl Iterator<Item = &mut StippleGate<'a>>,
+    ) {
+        (&mut self.colormap, self.stipples.iter_mut())
     }
 }

@@ -1,14 +1,19 @@
+use glfw::{Action, Context, Key, WindowEvent};
 use image::Rgba;
+use luminance::backend::color_slot::ColorSlot;
+use luminance::blending::Blending;
 use luminance::blending::Equation::Additive;
 use luminance::blending::Factor::{One, SrcAlphaComplement};
 use luminance::context::GraphicsContext;
-use luminance::depth_test::DepthComparison;
-use luminance::framebuffer::{ColorSlot, Framebuffer};
+use luminance::depth_stencil::Comparison;
+use luminance::framebuffer::Framebuffer;
+use luminance::pipeline::{PipelineError, PipelineState};
 use luminance::pixel::{R32F, RGBA32F};
 use luminance::render_state::RenderState;
-use luminance::tess::{Mode, Tess, TessBuilder, TessSlice};
-use luminance::texture::{Dim2, Flat, GenMipmaps, MagFilter, MinFilter, Sampler, Texture, Wrap};
-use luminance_glfw::{Action, GlfwSurface, Key, Surface, WindowEvent};
+use luminance::tess::{Mode, TessView};
+use luminance::texture::{Dim2, MagFilter, MinFilter, Sampler, TexelUpload, Texture, Wrap};
+use luminance_gl::GL33;
+use luminance_glfw::GlfwSurface;
 
 use crate::colormap::ColormapHandle;
 use crate::render::gate_canvas::CanvasGate;
@@ -16,7 +21,9 @@ use crate::render::gate_layer::LayerGate;
 use crate::render::semantics::stipple;
 use crate::texture::TextureHandle;
 use crate::{MaskHandle, Stipple, TextureRenderer};
+
 use std::collections::HashMap;
+use std::convert::TryInto;
 
 pub enum PreviewAction {
     Escape,
@@ -26,15 +33,15 @@ pub enum PreviewAction {
 /// Launches and executes end-to-end Dali renders.
 /// [preview_canvas] allows live previews, and
 /// [render_canvas] returns image-rs buffers.
-pub struct DaliPipeline<C> {
-    context: C,
-    image_buffers: HashMap<[u32; 2], Framebuffer<Flat, Dim2, RGBA32F, ()>>,
+pub struct DaliPipeline<S> {
+    surface: S,
+    image_buffers: HashMap<[u32; 2], Framebuffer<GL33, Dim2, RGBA32F, ()>>,
 }
 
 impl DaliPipeline<GlfwSurface> {
-    pub(crate) fn new(context: GlfwSurface) -> DaliPipeline<GlfwSurface> {
+    pub(crate) fn new(surface: GlfwSurface) -> DaliPipeline<GlfwSurface> {
         DaliPipeline {
-            context,
+            surface,
             image_buffers: HashMap::new(),
         }
     }
@@ -71,35 +78,39 @@ impl DaliPipeline<GlfwSurface> {
         }
 
         // TODO: look at samplers.
-        let texture: Texture<Flat, Dim2, RGBA32F> =
-            Texture::new(&mut self.context, size, 0, Self::colormap_sampler())
-                .expect("Failed to create colormap texture");
+        let texture = unimplemented!("colormap");
+        // let texture: Texture<GL33, Dim2, RGBA32F> = Texture::new(
+        //     &mut self.surface.context,
+        //     size,
+        //     Self::colormap_sampler(),
+        //     TexelUpload::Levels(buffer.as_slice()),
+        // )
+        // .expect("Failed to create colormap texture");
 
-        texture
-            .upload_raw(GenMipmaps::No, buffer.as_slice())
-            .expect("Texture should have uploaded");
         ColormapHandle { texture }
     }
 
     // TODO: share code w/ texture_from_image
     pub fn colormap_from_image(&mut self, image: image::RgbaImage) -> ColormapHandle {
         let dims = image.dimensions();
-
-        // TODO: look at samplers.
-        let texture: Texture<Flat, Dim2, RGBA32F> = Texture::new(
-            &mut self.context,
-            [dims.0, dims.1],
-            0,
-            Self::colormap_sampler(),
-        )
-        .expect("Should have generated texture");
-
         let vec = image.into_raw();
         let vec: Vec<f32> = vec.into_iter().map(|e| (e as f32) / 255.0).collect();
+        let texels: Vec<[f32; 4]> = vec
+            .chunks_exact(4)
+            .map(|s| s.try_into().expect("unreachable"))
+            .collect();
 
-        texture
-            .upload_raw(GenMipmaps::No, vec.as_slice())
-            .expect("Should have uploaded texture");
+        // TODO: look at samplers.
+        let texture: Texture<GL33, Dim2, RGBA32F> = Texture::new(
+            &mut self.surface.context,
+            [dims.0, dims.1],
+            Self::colormap_sampler(),
+            TexelUpload::BaseLevel {
+                texels: &texels,
+                mipmaps: 0,
+            },
+        )
+        .expect("Should have generated texture");
 
         ColormapHandle { texture }
     }
@@ -129,7 +140,7 @@ impl DaliPipeline<GlfwSurface> {
 
             let cropped = image::imageops::crop(&mut image, edge_len, 0, h, h);
 
-            return cropped.to_image();
+            cropped.to_image()
         } else {
             let bar_len = (h - w) / 2;
             println!(
@@ -139,7 +150,7 @@ impl DaliPipeline<GlfwSurface> {
 
             let cropped = image::imageops::crop(&mut image, 0, bar_len, w, w);
 
-            return cropped.to_image();
+            cropped.to_image()
         }
     }
 
@@ -147,86 +158,93 @@ impl DaliPipeline<GlfwSurface> {
         let image = Self::to_square(image);
 
         let dims = image.dimensions();
-        // TODO: look at samplers.
-        let texture: Texture<Flat, Dim2, R32F> = Texture::new(
-            &mut self.context,
-            [dims.0, dims.1],
-            mipmaps,
-            Self::texture_sampler(),
-        )
-        .expect("Should have generated texture");
-
         let vec = image.into_raw();
         let vec: Vec<f32> = vec.into_iter().map(|e| (e as f32) / 255.0).collect();
 
-        texture
-            .upload_raw(GenMipmaps::Yes, vec.as_slice())
-            .expect("Should have uploaded texture");
+        // TODO: look at samplers.
+        let texture: Texture<GL33, Dim2, R32F> = Texture::new(
+            &mut self.surface.context,
+            [dims.0, dims.1],
+            Self::texture_sampler(),
+            TexelUpload::BaseLevel {
+                texels: vec.as_slice(),
+                mipmaps,
+            },
+        )
+        .expect("Should have generated texture");
 
-        MaskHandle { mask: texture }
+        MaskHandle::new(texture)
     }
 
     pub fn texture_from_image(&mut self, image: image::GrayImage, mipmaps: usize) -> TextureHandle {
         let image = Self::to_square(image);
 
         let dims = image.dimensions();
-        // TODO: look at samplers.
-        let texture: Texture<Flat, Dim2, R32F> = Texture::new(
-            &mut self.context,
-            [dims.0, dims.1],
-            mipmaps,
-            Self::texture_sampler(),
-        )
-        .expect("Should have generated texture");
-
         let vec = image.into_raw();
         let vec: Vec<f32> = vec.into_iter().map(|e| (e as f32) / 255.0).collect();
 
-        texture
-            .upload_raw(GenMipmaps::Yes, vec.as_slice())
-            .expect("Should have uploaded texture");
+        // TODO: look at samplers.
+        let texture: Texture<GL33, Dim2, R32F> = Texture::new(
+            &mut self.surface.context,
+            [dims.0, dims.1],
+            Self::texture_sampler(),
+            TexelUpload::BaseLevel {
+                texels: vec.as_slice(),
+                mipmaps,
+            },
+        )
+        .expect("Should have generated texture");
 
-        TextureHandle { texture }
+        TextureHandle::new(texture)
     }
 
     pub fn texture<T: TextureRenderer>(&mut self, texture_renderer: &T) -> TextureHandle {
         // allocate framebuffer
 
-        let program = texture_renderer.compile();
-        let buffer: Framebuffer<Flat, Dim2, R32F, ()> =
-            Framebuffer::new(&mut self.context, texture_renderer.texture_size(), 0)
-                .expect("Should have framebuffer");
+        let mut program = texture_renderer.compile(&mut self.surface.context);
+        let mut buffer: Framebuffer<GL33, Dim2, R32F, ()> = Framebuffer::new(
+            &mut self.surface.context,
+            texture_renderer.texture_size(),
+            0,
+            Self::texture_sampler(),
+        )
+        .expect("Should have framebuffer");
 
         let tess = texture_renderer
-            .tesselate(&mut self.context)
+            .tesselate(&mut self.surface.context)
             .expect("Should have tesslated");
 
-        let pipeline_builder = &mut self.context.pipeline_builder();
-        pipeline_builder.pipeline(&buffer, [0., 0., 0., 1.], |_pipeline, mut shd_gate| {
-            shd_gate.shade(&program, |_, mut rdr_gate| {
-                rdr_gate.render(RenderState::default(), |mut tess_gate| {
-                    // this will render the attributeless quad with the offscreen framebuffer color slot
-                    // bound for the shader to fetch from
-                    tess_gate.render(&tess);
-                });
-            });
-        });
+        self.surface
+            .context
+            .new_pipeline_gate()
+            .pipeline::<PipelineError, _, _, _, _>(
+                &buffer,
+                &PipelineState::default().set_clear_color([0., 0., 0., 1.]),
+                |_pipeline, mut shd_gate| {
+                    shd_gate.shade(&mut program, |_, _, mut rdr_gate| {
+                        rdr_gate.render(&RenderState::default(), |mut tess_gate| {
+                            // this will render the attributeless quad with the offscreen framebuffer color slot
+                            // bound for the shader to fetch from
+                            tess_gate.render(&tess)
+                        })
+                    })
+                },
+            );
 
+        let texels: Vec<f32> = buffer.color_slot().get_raw_texels().expect("texels");
         // TODO: look at samplers.
-        let texture: Texture<Flat, Dim2, R32F> = Texture::new(
-            &mut self.context,
+        let texture: Texture<GL33, Dim2, R32F> = Texture::new(
+            &mut self.surface.context,
             texture_renderer.texture_size(),
-            texture_renderer.mipmaps(),
             Self::texture_sampler(),
+            TexelUpload::BaseLevel {
+                texels: &texels,
+                mipmaps: texture_renderer.mipmaps(),
+            },
         )
         .expect("Should have generated texture");
 
-        let texels: Vec<f32> = buffer.color_slot().get_raw_texels();
-        texture
-            .upload_raw(GenMipmaps::Yes, texels.as_slice())
-            .expect("Should have uploaded texture");
-
-        TextureHandle { texture }
+        TextureHandle::new(texture)
     }
 
     /// Prepares an interactive window, renders, and shows the result
@@ -234,18 +252,29 @@ impl DaliPipeline<GlfwSurface> {
     where
         F: FnOnce(&mut CanvasGate<'a>),
     {
-        let mut back_buffer = self.context.back_buffer().expect("Should have backbuffer");
-
+        let mut back_buffer = self
+            .surface
+            .context
+            .back_buffer()
+            .expect("Should have backbuffer");
         let mut canvas_gate = CanvasGate::new();
         callback(&mut canvas_gate);
 
-        Self::draw(&mut self.context, canvas_gate.layers(), &mut back_buffer);
+        Self::draw(
+            &mut self.surface,
+            canvas_gate.layers_mut(),
+            &mut back_buffer,
+        );
 
-        self.context.swap_buffers();
+        let events = &self.surface.events_rx;
+
+        self.surface.context.window.swap_buffers();
 
         loop {
             // for all the events on the surface
-            for event in self.context.poll_events() {
+            self.surface.context.window.glfw.poll_events();
+
+            for (_, event) in glfw::flush_messages(events) {
                 match event {
                     WindowEvent::Close | WindowEvent::Key(Key::Escape, _, Action::Release, _) => {
                         return PreviewAction::Escape
@@ -303,7 +332,9 @@ impl DaliPipeline<GlfwSurface> {
         let buffer = match buffers.get_mut(&size) {
             Some(t) => t,
             None => {
-                let buffer = Framebuffer::new(&mut self.context, size, 0).unwrap();
+                let buffer =
+                    Framebuffer::new(&mut self.surface.context, size, 0, Self::colormap_sampler())
+                        .unwrap();
                 self.image_buffers.insert(size.clone(), buffer);
                 self.image_buffers.get_mut(&size).unwrap()
             }
@@ -312,9 +343,9 @@ impl DaliPipeline<GlfwSurface> {
         let mut canvas_gate = CanvasGate::new();
         callback(&mut canvas_gate);
 
-        Self::draw(&mut self.context, canvas_gate.layers(), buffer);
+        Self::draw(&mut self.surface, canvas_gate.layers_mut(), buffer);
 
-        let mut raw_texels: Vec<f32> = buffer.color_slot().get_raw_texels();
+        let mut raw_texels: Vec<f32> = buffer.color_slot().get_raw_texels().expect("texels");
         // we need to undo the premultiplied alpha
         // we *could* divide the color channels by the alpha channel, but the image crate does not
         // properly handle this if saving to JPEG (which has no alpha support)
@@ -331,13 +362,14 @@ impl DaliPipeline<GlfwSurface> {
         image::imageops::flip_vertical(&buffer)
     }
 
-    fn draw<'i, 'a: 'i, CS: ColorSlot<Flat, Dim2>, I: Iterator<Item = &'i LayerGate<'a>>>(
-        context: &mut GlfwSurface,
+    fn draw<'i, 'a: 'i, CS: ColorSlot<GL33, Dim2>, I: Iterator<Item = &'i mut LayerGate<'a>>>(
+        surface: &mut GlfwSurface,
         layers: I,
-        target_buffer: &mut Framebuffer<Flat, Dim2, CS, ()>,
+        target_buffer: &mut Framebuffer<GL33, Dim2, CS, ()>,
     ) {
-        let stipple_program = crate::render::semantics::stipple::compile();
-        let stipple_texture_program = crate::render::semantics::stipple::compile_with_texture();
+        let mut stipple_program = crate::render::semantics::stipple::compile(&mut surface.context);
+        let mut stipple_texture_program =
+            crate::render::semantics::stipple::compile_with_texture(&mut surface.context);
 
         const INSTANCE_CHUNK_SIZE: usize = 512;
         const QUAD: [[f32; 2]; 4] = [[-1.0, -1.0], [1.0, -1.0], [-1.0, 1.0], [1.0, 1.0]];
@@ -353,69 +385,96 @@ impl DaliPipeline<GlfwSurface> {
             .map(stipple::Vertex::new_with_position)
             .collect();
 
-        let mut tess: Tess = TessBuilder::new(context)
-            .add_vertices(&stipple_quad)
-            .add_instances(null_instances)
+        let mut tess = surface
+            .context
+            .new_tess()
+            .set_vertices(stipple_quad)
+            .set_instances(null_instances)
             .set_mode(Mode::TriangleStrip)
             .build()
             .unwrap();
 
-        let aspect = target_buffer.width() as f32 / target_buffer.height() as f32;
-        context.pipeline_builder().pipeline(
-            &target_buffer,
-            [1.0, 1.0, 1.0, 0.0],
-            |pipeline, mut shd_gate| {
-                for layer in layers {
-                    for stipples in layer.stipples() {
-                        let mut instances: Vec<stipple::VertexInstance> =
-                            stipples.instances().map(|stipple| stipple.into()).collect();
+        let [width, height] = target_buffer.size();
+        let aspect = width as f32 / height as f32;
+        surface
+            .context
+            .new_pipeline_gate()
+            .pipeline::<PipelineError, _, _, _, _>(
+                target_buffer,
+                &PipelineState::default().set_clear_color([1.0, 1.0, 1.0, 0.0]),
+                |pipeline, mut shd_gate| {
+                    for layer in layers {
+                        let (colormap, stipple_gates) = layer.split_mut();
+                        for stipples in stipple_gates {
+                            let mut instances: Vec<stipple::VertexInstance> =
+                                stipples.instances().map(|stipple| stipple.into()).collect();
 
-                        let bound_mask = pipeline.bind_texture(&stipples.mask.mask);
-                        let bound_colormap = pipeline.bind_texture(&layer.colormap.texture);
-                        let bound_texture =
-                            stipples.texture.map(|e| pipeline.bind_texture(&e.texture));
+                            let mut mask = stipples.mask.lock();
+                            let bound_mask = pipeline.bind_texture(&mut mask);
+                            let bound_colormap = pipeline.bind_texture(&mut colormap.texture);
+                            let bound_texture_lock = stipples.texture.map(|tex| tex.lock());
 
-                        let program = if bound_texture.is_some() {
-                            &stipple_texture_program
-                        } else {
-                            &stipple_program
-                        };
+                            let program = if bound_texture_lock.is_some() {
+                                &mut stipple_texture_program
+                            } else {
+                                &mut stipple_program
+                            };
 
-                        shd_gate.shade(program, |iface, mut rdr_gate| {
-                            let render_state = RenderState::default()
-                                .set_blending((Additive, One, SrcAlphaComplement))
-                                .set_depth_test(DepthComparison::Always);
+                            shd_gate.shade::<PipelineError, _, _, _, _>(
+                                program,
+                                |mut piface, siface, mut rdr_gate| {
+                                    let render_state = RenderState::default()
+                                        .set_blending(Blending {
+                                            equation: Additive,
+                                            src: One,
+                                            dst: SrcAlphaComplement,
+                                        })
+                                        .set_depth_test(Comparison::Always);
 
-                            rdr_gate.render(render_state, |mut tess_gate| {
-                                if instances.len() > 0 {
-                                    iface.aspect_ratio.update(aspect);
-                                    iface.mask.update(&bound_mask);
-                                    iface.colormap.update(&bound_colormap);
-                                    iface.discard_threshold.update(0.0f32);
+                                    rdr_gate.render(&render_state, |mut tess_gate| {
+                                        if !instances.is_empty() {
+                                            piface.set(&siface.aspect_ratio, aspect);
+                                            piface.set(&siface.mask, bound_mask?.binding());
+                                            piface.set(&siface.colormap, bound_colormap?.binding());
+                                            piface.set(&siface.discard_threshold, 0.0f32);
 
-                                    if let Some(tex) = bound_texture {
-                                        iface.texture.update(&tex);
-                                    }
+                                            if let Some(mut tex) = bound_texture_lock {
+                                                let bound_texture = pipeline.bind_texture(&mut tex);
+                                                piface
+                                                    .set(&siface.texture, bound_texture?.binding());
+                                            }
 
-                                    for chunk in instances.chunks_mut(INSTANCE_CHUNK_SIZE) {
-                                        tess.as_inst_slice_mut()
-                                            .expect("Must be able to index instances")
-                                            [0..chunk.len()]
-                                            .swap_with_slice(chunk);
+                                            for chunk in instances.chunks_mut(INSTANCE_CHUNK_SIZE) {
+                                                tess.instances_mut()
+                                                    .expect("Must be able to index instances")
+                                                    [0..chunk.len()]
+                                                    .swap_with_slice(chunk);
 
-                                        if chunk.len() == INSTANCE_CHUNK_SIZE {
-                                            tess_gate.render(&tess);
-                                        } else {
-                                            let slice = TessSlice::inst_whole(&tess, chunk.len());
-                                            tess_gate.render(slice);
+                                                if chunk.len() == INSTANCE_CHUNK_SIZE {
+                                                    tess_gate
+                                                        .render::<PipelineError, _, _, _, _, _>(
+                                                            &tess,
+                                                        )?;
+                                                } else {
+                                                    let slice =
+                                                        TessView::inst_whole(&tess, chunk.len());
+                                                    tess_gate
+                                                        .render::<PipelineError, _, _, _, _, _>(
+                                                            slice,
+                                                        )?;
+                                                }
+                                            }
                                         }
-                                    }
-                                }
-                            });
-                        });
+
+                                        Ok(())
+                                    })
+                                },
+                            )?;
+                        }
                     }
-                }
-            },
-        );
+
+                    Ok(())
+                },
+            );
     }
 }

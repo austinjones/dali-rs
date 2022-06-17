@@ -5,7 +5,6 @@ use std::f32::consts::PI;
 
 use std::path::Path;
 
-
 use rand::Rng;
 use rand::SeedableRng;
 use rand_xorshift::XorShiftRng;
@@ -34,18 +33,18 @@ pub fn main() {
 
     // load the textures and colormap from disk
     let image = image::open(Path::new("examples/tex1.jpg")).expect("1i");
-    let mask1 = pipeline.mask_from_image(image.to_luma(), 4);
+    let mask1 = pipeline.mask_from_image(image.to_luma8(), 4);
 
     let image = image::open(Path::new("examples/tex2.jpg")).expect("2i");
-    let mask2 = pipeline.mask_from_image(image.to_luma(), 4);
+    let mask2 = pipeline.mask_from_image(image.to_luma8(), 4);
 
     let image = image::open(Path::new("examples/colormap.jpg")).expect("colormap");
-    let color_map = pipeline.colormap_from_image(image.to_rgba());
+    let mut color_map = pipeline.colormap_from_image(image.to_rgba8());
 
     // tell the pipeline to open a preview window
     pipeline.preview_canvas(|canvas_gate| {
         // bind the colormap as our target image
-        canvas_gate.layer(&color_map, |layer_gate| {
+        canvas_gate.layer(&mut color_map, |layer_gate| {
             // make several passes, each time depositing a few stipples of each texture
             for _ in 0..48 {
                 // render a bit of tex1
@@ -60,8 +59,8 @@ pub fn main() {
                         stipple_gate.draw(stipple);
                     });
                 }
-//
-//                // and a bit of tex2
+                //
+                //                // and a bit of tex2
                 for _ in 0..20 {
                     layer_gate.stipple(&mask2, |stipple_gate| {
                         let stipple = Stipple::default()

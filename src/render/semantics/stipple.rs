@@ -1,36 +1,42 @@
 use std::borrow::Borrow;
 
-use luminance::pipeline::BoundTexture;
+use luminance::backend::shader::Shader;
+use luminance::context::GraphicsContext;
+use luminance::pipeline::TextureBinding;
 use luminance::pixel::Floating;
-use luminance::shader::program::{Program, Uniform};
-use luminance::texture::{Dim2, Flat};
+use luminance::shader::{Program, ProgramBuilder, Uniform};
+use luminance::texture::Dim2;
 use luminance_derive::{Semantics, UniformInterface, Vertex};
+use luminance_gl::GL33;
 
 use crate::stipple::Stipple;
 
-const STIPPLE_VS: &'static str = include_str!("../../shaders/stipple-vs.glsl");
-const STIPPLE_FS: &'static str = include_str!("../../shaders/stipple-fs.glsl");
-const STIPPLE_TEXTURE_FS: &'static str = include_str!("../../shaders/stipple-texture-fs.glsl");
+const STIPPLE_VS: &str = include_str!("../../shaders/stipple-vs.glsl");
+const STIPPLE_FS: &str = include_str!("../../shaders/stipple-fs.glsl");
+const STIPPLE_TEXTURE_FS: &str = include_str!("../../shaders/stipple-texture-fs.glsl");
 
-pub fn compile() -> Program<StippleSemantics, (), StippleInterface> {
+pub fn compile<C>(ctx: &mut C) -> Program<GL33, StippleSemantics, (), StippleInterface>
+where
+    C: GraphicsContext<Backend = GL33>,
+    C::Backend: Shader,
+{
     // TODO: figure out how to deal with warnings.  panic?
-    let stipple_program = Program::<StippleSemantics, (), StippleInterface>::from_strings(
-        None, STIPPLE_VS, None, STIPPLE_FS,
-    )
-    .expect("program creation");
+    let stipple_program = ProgramBuilder::new(ctx)
+        .from_strings(STIPPLE_VS, None, None, STIPPLE_FS)
+        .expect("program creation");
 
     stipple_program.ignore_warnings()
 }
 
-pub fn compile_with_texture() -> Program<StippleSemantics, (), StippleInterface> {
+pub fn compile_with_texture<C>(ctx: &mut C) -> Program<GL33, StippleSemantics, (), StippleInterface>
+where
+    C: GraphicsContext<Backend = GL33>,
+    C::Backend: Shader,
+{
     // TODO: figure out how to deal with warnings.  panic?
-    let stipple_program = Program::<StippleSemantics, (), StippleInterface>::from_strings(
-        None,
-        STIPPLE_VS,
-        None,
-        STIPPLE_TEXTURE_FS,
-    )
-    .expect("program creation");
+    let stipple_program = ProgramBuilder::new(ctx)
+        .from_strings(STIPPLE_VS, None, None, STIPPLE_TEXTURE_FS)
+        .expect("program creation");
 
     stipple_program.ignore_warnings()
 }
@@ -39,11 +45,11 @@ pub fn compile_with_texture() -> Program<StippleSemantics, (), StippleInterface>
 pub struct StippleInterface {
     // we only need the source texture (from the framebuffer) to fetch from
     #[uniform(unbound, name = "source_mask")]
-    pub mask: Uniform<&'static BoundTexture<'static, Flat, Dim2, Floating>>,
+    pub mask: Uniform<TextureBinding<Dim2, Floating>>,
     #[uniform(unbound, name = "source_texture")]
-    pub texture: Uniform<&'static BoundTexture<'static, Flat, Dim2, Floating>>,
+    pub texture: Uniform<TextureBinding<Dim2, Floating>>,
     #[uniform(unbound, name = "source_colormap")]
-    pub colormap: Uniform<&'static BoundTexture<'static, Flat, Dim2, Floating>>,
+    pub colormap: Uniform<TextureBinding<Dim2, Floating>>,
     #[uniform(unbound, name = "aspect_ratio")]
     pub aspect_ratio: Uniform<f32>,
     #[uniform(unbound, name = "discard_threshold")]
